@@ -23,4 +23,8 @@ endif ()
 find_package(Stratum REQUIRED)
 find_package(Argon REQUIRED)
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
 add_subdirectory(regex)
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/version.h")

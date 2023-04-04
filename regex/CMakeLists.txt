@@ -1,8 +1,10 @@
 project(regex VERSION ${PROJECT_VERSION})
 
 add_library(${PROJECT_NAME} SHARED
-        src/regex.cpp)
+        match.cpp
+        pattern.cpp
+        regex.cpp)
 
-set_target_properties(${PROJECT_NAME} PROPERTIES LIBRARY_OUTPUT_NAME "regex")
+set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
 
-target_link_libraries(regex Argon::ArgonVM)
+target_link_libraries(${PROJECT_NAME} PRIVATE Argon::ArgonVM pcre2-8)

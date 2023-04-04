@@ -1,0 +1,14 @@
+// This source file is part of the Argon project.
+//
+// Licensed under the Apache License v2.0
+
+#ifndef ARLIB_VERSION_H_
+#define ARLIB_VERSION_H_
+
+#define ARLIB_VERSION   "@PROJECT_VERSION@"
+
+#define ARLIB_MAJOR     @PROJECT_VERSION_MAJOR@
+#define ARLIB_MINOR     @PROJECT_VERSION_MINOR@
+#define ARLIB_PATCH     @PROJECT_VERSION_PATCH@
+
+#endif // !ARLIB_VERSION_H_
