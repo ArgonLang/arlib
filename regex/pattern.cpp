@@ -201,8 +201,7 @@ ARGON_METHOD(pattern_replace, replace,
 ARGON_METHOD(pattern_split, split,
              "Split 'subject' by the occurrences of pattern.\n"
              "\n"
-             "- Parameters:\n"
-             "  - subject: The subject which you want to search for the pattern.\n"
+             "- Parameter subject: The subject which you want to search for the pattern.\n"
              "- KParameters:\n"
              "  - count: Specifies how many splits to do.\n"
              "- Returns: List of split elements.\n",

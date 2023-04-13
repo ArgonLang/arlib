@@ -1,0 +1,23 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+*/
+
+from "regex/_regex" import *
+
+pub func findall(data, pattern) {
+    return Pattern(pattern, 0).findall(data)
+}
+
+pub func find(data, pattern) {
+    return Pattern(pattern, 0).find(data)
+}
+
+pub func replace(data, replace, pattern) {
+    return Pattern(pattern, 0).replace(data, replace)
+}
+
+pub func split(data, pattern) {
+    return Pattern(pattern, 0).split(data)
+}
