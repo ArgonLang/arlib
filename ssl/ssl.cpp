@@ -2,13 +2,18 @@
 //
 // Licensed under the Apache License v2.0
 
+#include <openssl/err.h>
+
 #include <argon/vm/runtime.h>
 
 #include <argon/vm/datatype/module.h>
 
 #include <version.h>
 
+#include <ssl/ssl.h>
+
 using namespace argon::vm::datatype;
+using namespace arlib::ssl;
 
 const ModuleEntry ssl_entries[] = {
         ARGON_MODULE_SENTINEL
@@ -38,3 +43,24 @@ constexpr ModuleInit ModuleSSL = {
 };
 
 ARGON_MODULE_INIT(ModuleSSL)
+
+Error *arlib::ssl::SSLErrorNew() {
+    char buf[256] = {};
+    Error *err;
+
+    if (ERR_error_string(ERR_get_error(), buf) == nullptr)
+        err = ErrorNew(kSSLError[0], "unknown error");
+    else
+        err = ErrorNew(kSSLError[0], buf);
+
+    return err;
+}
+
+void arlib::ssl::SSLError() {
+    Error *err = SSLErrorNew();
+
+    if (err != nullptr) {
+        argon::vm::Panic((ArObject *) err);
+        Release(err);
+    }
+}

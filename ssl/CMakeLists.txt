@@ -6,6 +6,7 @@ set(SSL_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/ssl")
 find_package(OpenSSL REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
+        context.cpp
         ssl.cpp)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "_")
