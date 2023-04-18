@@ -6,7 +6,10 @@
 #include <openssl/err.h>
 #include <openssl/x509v3.h>
 
+#include <argon/vm/runtime.h>
+
 #include <argon/vm/datatype/boolean.h>
+#include <argon/vm/datatype/dict.h>
 #include <argon/vm/datatype/error.h>
 #include <argon/vm/datatype/integer.h>
 #include <argon/vm/datatype/nil.h>
@@ -79,10 +82,88 @@ static bool SetVerifyMode(SSLContext *context, SSLVerify mode) {
     return true;
 }
 
+static int PasswordCallback(char *buf, int size, int rwflag, void *userdata) {
+    auto *obj = (ArObject *) userdata;
+    const auto *s_pwd = (String *) obj;
+    int len;
+
+    if (AR_TYPEOF(obj, type_function_)) {
+        assert(false);
+        // todo: callback
+    }
+
+    if (!AR_TYPEOF(s_pwd, type_string_)) {
+        ErrorFormat(kTypeError[0], "callback must return a string not '%s'", AR_TYPE_NAME(s_pwd));
+
+        return -1;
+    }
+
+    len = (int) ARGON_RAW_STRING_LENGTH(s_pwd);
+
+    if (len > size) {
+        ErrorFormat(kValueError[0], "password cannot be longer than %d bytes", size);
+
+        return -1;
+    }
+
+    argon::vm::memory::MemoryCopy(buf, s_pwd->buffer, len);
+
+    return len;
+}
+
+static int ServernameCallback(SSL *ssl, int *al, void *args) {
+    // TODO:
+
+    assert(false);
+
+    return 0;
+}
+
 ARGON_FUNCTION(sslcontext_sslcontext, SSLContext,
                "i: protocol",
                nullptr, false, false) {
     return (ArObject *) SSLContextNew((SSLProtocol) ((Integer *) *args)->sint);
+}
+
+ARGON_METHOD(sslcontext_get_stats, get_stats,
+             "",
+             nullptr, false, false) {
+#define ADD_STAT(SSLNAME, KEY)                                          \
+    if((tmp = IntNew(SSL_CTX_sess_##SSLNAME(self->ctx))) == nullptr)    \
+        goto ERROR;                                                     \
+    if(!DictInsert(dict, (KEY), (ArObject*)tmp)) {                      \
+        Release(tmp);                                                   \
+        goto ERROR;                                                     \
+    } Release(tmp)
+
+    auto *self = (SSLContext *) _self;
+    Integer *tmp;
+    Dict *dict;
+
+    if ((dict = DictNew()) == nullptr)
+        return nullptr;
+
+    // TODO: UniqueLock lock(ctx->lock);
+
+    ADD_STAT(number, "number");
+    ADD_STAT(connect, "connect");
+    ADD_STAT(connect_good, "connect_good");
+    ADD_STAT(connect_renegotiate, "connect_renegotiate");
+    ADD_STAT(accept, "accept");
+    ADD_STAT(accept_good, "accept_good");
+    ADD_STAT(accept_renegotiate, "accept_renegotiate");
+    ADD_STAT(accept, "accept");
+    ADD_STAT(hits, "hits");
+    ADD_STAT(misses, "misses");
+    ADD_STAT(timeouts, "timeouts");
+    ADD_STAT(cache_full, "cache_full");
+
+    return (ArObject *) dict;
+
+    ERROR:
+    Release(tmp);
+    Release(dict);
+    return nullptr;
 }
 
 ARGON_METHOD(sslcontext_load_cadata, load_cadata,
@@ -225,6 +306,96 @@ ARGON_METHOD(sslcontext_load_capath, load_capath,
     return ARGON_NIL_VALUE;
 }
 
+ARGON_METHOD(sslcontext_load_cert_chain, load_cert_chain,
+             "",
+             "s: certfile", false, false) {
+    auto *self = (SSLContext *) _self;
+    auto *certfile = (String *) IncRef(args[0]);
+    auto *keyfile = IncRef(certfile);
+
+    ArObject *callback = nullptr;
+    pem_password_cb *orig_pwd_cb;
+    void *orig_pwd_userdata;
+
+    if (kwargs != nullptr) {
+        auto *tkey = (String *) DictLookup((Dict *) kwargs, (const char *) "keyfile");
+        if (tkey == nullptr && argon::vm::IsPanicking()) {
+            Release(certfile);
+
+            return nullptr;
+        } else
+            Replace((ArObject **) &keyfile, (ArObject *) tkey);
+
+        callback = DictLookup((Dict *) kwargs, (const char *) "password");
+        if (callback == nullptr && argon::vm::IsPanicking()) {
+            Release(certfile);
+            Release(keyfile);
+
+            return nullptr;
+        }
+    }
+
+    // TODO: UniqueLock lock(ctx->lock);
+
+    orig_pwd_cb = SSL_CTX_get_default_passwd_cb(self->ctx);
+    orig_pwd_userdata = SSL_CTX_get_default_passwd_cb_userdata(self->ctx);
+
+    if (!IsNull(callback)) {
+        if (!AR_TYPEOF(callback, type_string_) && !AR_TYPEOF(callback, type_function_)) {
+            Release(certfile);
+            Release(keyfile);
+            Release(callback);
+
+            ErrorFormat(kTypeError[0], "password should be a string or callable");
+
+            return nullptr;
+        }
+
+        SSL_CTX_set_default_passwd_cb(self->ctx, PasswordCallback);
+        SSL_CTX_set_default_passwd_cb_userdata(self->ctx, callback);
+    }
+
+    errno = 0;
+    if (SSL_CTX_use_certificate_chain_file(self->ctx, (const char *) ARGON_RAW_STRING(certfile)) != 1) {
+        if (!argon::vm::IsPanicking())
+            errno != 0 ? ErrorFromErrno(errno) : SSLError();
+
+        goto ERROR;
+    }
+
+    errno = 0;
+    if (SSL_CTX_use_PrivateKey_file(self->ctx, (const char *) ARGON_RAW_STRING(certfile), SSL_FILETYPE_PEM) != 1) {
+        if (!argon::vm::IsPanicking())
+            errno != 0 ? ErrorFromErrno(errno) : SSLError();
+
+        goto ERROR;
+    }
+
+    if (SSL_CTX_check_private_key(self->ctx) != 1) {
+        SSLError();
+
+        goto ERROR;
+    }
+
+    SSL_CTX_set_default_passwd_cb(self->ctx, orig_pwd_cb);
+    SSL_CTX_set_default_passwd_cb_userdata(self->ctx, orig_pwd_userdata);
+
+    Release(certfile);
+    Release(keyfile);
+    Release(callback);
+
+    return ARGON_NIL_VALUE;
+
+    ERROR:
+    Release(certfile);
+    Release(keyfile);
+    Release(callback);
+
+    SSL_CTX_set_default_passwd_cb(self->ctx, orig_pwd_cb);
+    SSL_CTX_set_default_passwd_cb_userdata(self->ctx, orig_pwd_userdata);
+    return nullptr;
+}
+
 ARGON_METHOD(sslcontext_load_path_default, load_path_default,
              "",
              nullptr, false, false) {
@@ -241,47 +412,6 @@ ARGON_METHOD(sslcontext_load_path_default, load_path_default,
     }
 
     return ARGON_NIL_VALUE;
-}
-
-ARGON_METHOD(sslcontext_get_stats, get_stats,
-             "",
-             nullptr, false, false) {
-#define ADD_STAT(SSLNAME, KEY)                                          \
-    if((tmp = IntNew(SSL_CTX_sess_##SSLNAME(self->ctx))) == nullptr)    \
-        goto ERROR;                                                     \
-    if(!DictInsert(dict, (KEY), (ArObject*)tmp)) {                      \
-        Release(tmp);                                                   \
-        goto ERROR;                                                     \
-    } Release(tmp)
-
-    auto *self = (SSLContext *) _self;
-    Integer *tmp;
-    Dict *dict;
-
-    if ((dict = DictNew()) == nullptr)
-        return nullptr;
-
-    // TODO: UniqueLock lock(ctx->lock);
-
-    ADD_STAT(number, "number");
-    ADD_STAT(connect, "connect");
-    ADD_STAT(connect_good, "connect_good");
-    ADD_STAT(connect_renegotiate, "connect_renegotiate");
-    ADD_STAT(accept, "accept");
-    ADD_STAT(accept_good, "accept_good");
-    ADD_STAT(accept_renegotiate, "accept_renegotiate");
-    ADD_STAT(accept, "accept");
-    ADD_STAT(hits, "hits");
-    ADD_STAT(misses, "misses");
-    ADD_STAT(timeouts, "timeouts");
-    ADD_STAT(cache_full, "cache_full");
-
-    return (ArObject *) dict;
-
-    ERROR:
-    Release(tmp);
-    Release(dict);
-    return nullptr;
 }
 
 ARGON_METHOD(sslcontext_set_check_hostname, set_check_hostname,
@@ -369,25 +499,144 @@ ARGON_METHOD(sslcontext_set_num_tickets, set_num_tickets,
     return ARGON_NIL_VALUE;
 }
 
+ARGON_METHOD(sslcontext_set_sni, set_sni,
+             "",
+             ": callback", false, false) {
+    auto *self = (SSLContext *) _self;
+
+    // TODO: UniqueLock lock(ctx->lock);
+
+    if (self->protocol == SSLProtocol::TLS_CLIENT) {
+        ErrorFormat(kValueError[0], "sni callback cannot be set on TLS_CLIENT");
+
+        return nullptr;
+    }
+
+    if (IsNull(args[0])) {
+        SSL_CTX_set_tlsext_servername_callback(self->ctx, nullptr);
+
+        Release(&self->sni_callback);
+
+        return ARGON_NIL_VALUE;
+    }
+
+    self->sni_callback = IncRef(args[0]);
+
+    SSL_CTX_set_tlsext_servername_callback(self->ctx, ServernameCallback);
+    SSL_CTX_set_tlsext_servername_arg(self->ctx, self);
+
+    return ARGON_NIL_VALUE;
+}
+
+ARGON_METHOD(sslcontext_set_verify, set_verify,
+             "",
+             "i: verify", false, false) {
+    auto *self = (SSLContext *) _self;
+
+    auto flag = (SSLVerify) ((Integer *) args[0])->sint;
+
+    // todo: UniqueLock lock(ctx->lock);
+
+    if (flag == SSLVerify::CERT_NONE && self->check_hname) {
+        ErrorFormat(kSSLError[0], "cannot set verify mode to CERT_NONE when check hostname is enabled");
+        return nullptr;
+    }
+
+    if (!SetVerifyMode(self, flag))
+        return nullptr;
+
+    return ARGON_NIL_VALUE;
+}
+
+ARGON_METHOD(sslcontext_set_verify_flags, set_verify_flags,
+             "",
+             "i: flags", false, false) {
+    auto *self = (SSLContext *) _self;
+    X509_VERIFY_PARAM *param;
+    unsigned long clear;
+    unsigned long flags;
+    unsigned long set;
+
+    auto new_flags = ((Integer *) args[0])->sint;
+
+    // todo: UniqueLock lock(ctx->lock);
+
+    param = SSL_CTX_get0_param(self->ctx);
+    flags = X509_VERIFY_PARAM_get_flags(param);
+    clear = flags & ~new_flags;
+    set = ~flags & new_flags;
+
+    if (clear && !X509_VERIFY_PARAM_clear_flags(param, clear)) {
+        SSLError();
+
+        return nullptr;
+    }
+
+    if (set && !X509_VERIFY_PARAM_set_flags(param, set)) {
+        SSLError();
+
+        return nullptr;
+    }
+
+    return ARGON_NIL_VALUE;
+}
+
+ARGON_METHOD(sslcontext_wrap, wrap,
+             "",
+             ": socket, b: server_side", false, false) {
+    // KWargs: hostname
+
+    assert(false);
+
+    return ARGON_NIL_VALUE;
+}
+
 const FunctionDef sslcontext_methods[] = {
         sslcontext_sslcontext,
 
+        sslcontext_get_stats,
         sslcontext_load_cadata,
         sslcontext_load_cafile,
         sslcontext_load_capath,
+        sslcontext_load_cert_chain,
         sslcontext_load_path_default,
-        sslcontext_get_stats,
         sslcontext_set_check_hostname,
         sslcontext_set_ciphers,
         sslcontext_set_max_version,
         sslcontext_set_min_version,
         sslcontext_set_num_tickets,
+        sslcontext_set_sni,
+        sslcontext_set_verify,
+        sslcontext_set_verify_flags,
+        sslcontext_wrap,
         ARGON_METHOD_SENTINEL
+};
+
+ArObject *security_level_get(const SSLContext *context) {
+    // todo: UniqueLock lock(context->lock);
+
+    return (ArObject *) IntNew(SSL_CTX_get_security_level(context->ctx));
+}
+
+ArObject *session_ticket_get(const SSLContext *context) {
+    // todo: UniqueLock lock(context->lock);
+
+    return (ArObject *) UIntNew(SSL_CTX_get_num_tickets(context->ctx));
+}
+
+const MemberDef sslcontext_members[] = {
+        ARGON_MEMBER("check_hostname", MemberType::BOOL, offsetof(SSLContext, check_hname), true),
+        ARGON_MEMBER("protocol", MemberType::INT, offsetof(SSLContext, protocol), true),
+        ARGON_MEMBER_GETSET("security_level", (MemberGetFn) security_level_get, nullptr),
+        ARGON_MEMBER_GETSET("session_ticket", (MemberGetFn) session_ticket_get, nullptr),
+        ARGON_MEMBER("sni_callback", MemberType::OBJECT, offsetof(SSLContext, sni_callback), true),
+        ARGON_MEMBER("verify_mode", MemberType::INT, offsetof(SSLContext, verify_mode), true),
+        ARGON_MEMBER_SENTINEL
 };
 
 const ObjectSlots sslcontext_objslot = {
         sslcontext_methods,
-        nullptr,
+        sslcontext_members,
         nullptr,
         nullptr,
         nullptr,
