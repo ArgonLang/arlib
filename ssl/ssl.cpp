@@ -27,6 +27,9 @@ bool SSLInit(Module *self) {
     if (!TypeInit((TypeInfo *) arlib::ssl::type_sslcontext_, nullptr))
         return false;
 
+    if (!TypeInit((TypeInfo *) arlib::ssl::type_sslsocket_, nullptr))
+        return false;
+
     return true;
 #undef AddIntConstant
 }

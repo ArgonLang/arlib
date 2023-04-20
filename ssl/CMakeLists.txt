@@ -7,6 +7,7 @@ find_package(OpenSSL REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
         context.cpp
+        socket.cpp
         ssl.cpp)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "_")

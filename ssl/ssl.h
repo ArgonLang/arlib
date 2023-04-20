@@ -8,6 +8,8 @@
 #include <argon/vm/datatype/arobject.h>
 #include <argon/vm/datatype/tuple.h>
 
+#include <argon/vm/io/socket/socket.h>
+
 namespace arlib::ssl {
     constexpr const char *kSSLError[] = {
             (const char *) "SSLError",
@@ -41,9 +43,25 @@ namespace arlib::ssl {
     };
     extern const argon::vm::datatype::TypeInfo *type_sslcontext_;
 
-    SSLContext *SSLContextNew(SSLProtocol protocol);
+    struct SSLSocket{
+        AROBJ_HEAD;
+
+        argon::vm::io::socket::Socket *socket;
+
+        argon::vm::datatype::String *hostname;
+
+        SSLContext *context;
+        SSL *ssl;
+
+        SSLProtocol protocol;
+    };
+    extern const argon::vm::datatype::TypeInfo *type_sslsocket_;
 
     argon::vm::datatype::Error *SSLErrorNew();
+
+    SSLContext *SSLContextNew(SSLProtocol protocol);
+
+    SSLSocket *SSLSocketNew(SSLContext *context, argon::vm::io::socket::Socket *socket, argon::vm::datatype::String *hostname, bool server_side);
 
     void SSLError();
 

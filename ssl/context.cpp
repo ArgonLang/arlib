@@ -584,11 +584,33 @@ ARGON_METHOD(sslcontext_set_verify_flags, set_verify_flags,
 ARGON_METHOD(sslcontext_wrap, wrap,
              "",
              ": socket, b: server_side", false, false) {
-    // KWargs: hostname
+    String *hostname = nullptr;
+    SSLSocket *sock;
 
-    assert(false);
+    if (kwargs != nullptr) {
+        hostname = (String *) DictLookup((Dict *) kwargs, (const char *) "hostname");
+        if (hostname == nullptr && argon::vm::IsPanicking())
+            return nullptr;
 
-    return ARGON_NIL_VALUE;
+        if (hostname != nullptr && AR_TYPEOF(hostname, type_string_)) {
+            ErrorFormat(kTypeError[0], kTypeError[2], type_string_->name, AR_TYPE_QNAME(hostname));
+
+            Release(hostname);
+
+            return nullptr;
+        }
+    }
+
+    // todo: UniqueLock lock(ctx->lock);
+
+    sock = SSLSocketNew((SSLContext *) _self,
+                        (argon::vm::io::socket::Socket *) args[0],
+                        hostname,
+                        ArBoolToBool((Boolean *) args[1]));
+
+    Release(hostname);
+
+    return (ArObject *) sock;
 }
 
 const FunctionDef sslcontext_methods[] = {
