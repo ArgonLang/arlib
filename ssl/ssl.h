@@ -15,6 +15,8 @@ namespace arlib::ssl {
             (const char *) "SSLError",
     };
 
+    constexpr const unsigned int kSSLWorkingBufferSize = 4096; // Bytes
+
     enum class SSLProtocol : int {
         TLS,
         TLS_CLIENT,
@@ -43,17 +45,37 @@ namespace arlib::ssl {
     };
     extern const argon::vm::datatype::TypeInfo *type_sslcontext_;
 
-    struct SSLSocket{
+    struct SSLSocket {
         AROBJ_HEAD;
+
+        SSLContext *context;
+
+        BIO *in_bio;
+        BIO *out_bio;
+
+        SSL *ssl;
 
         argon::vm::io::socket::Socket *socket;
 
         argon::vm::datatype::String *hostname;
 
-        SSLContext *context;
-        SSL *ssl;
+        struct {
+            unsigned char *buffer;
+
+            size_t capacity;
+            size_t length;
+        } buffer;
+
+        struct {
+            argon::vm::datatype::ArBuffer arBuffer;
+
+            unsigned char *buffer;
+            size_t length;
+        }user_buffer;
 
         SSLProtocol protocol;
+
+        int want_status;
     };
     extern const argon::vm::datatype::TypeInfo *type_sslsocket_;
 
@@ -61,7 +83,9 @@ namespace arlib::ssl {
 
     SSLContext *SSLContextNew(SSLProtocol protocol);
 
-    SSLSocket *SSLSocketNew(SSLContext *context, argon::vm::io::socket::Socket *socket, argon::vm::datatype::String *hostname, bool server_side);
+    SSLSocket *
+    SSLSocketNew(SSLContext *context, argon::vm::io::socket::Socket *socket, argon::vm::datatype::String *hostname,
+                 bool server_side);
 
     void SSLError();
 

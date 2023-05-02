@@ -16,6 +16,8 @@ using namespace argon::vm::datatype;
 using namespace arlib::ssl;
 
 const ModuleEntry ssl_entries[] = {
+        MODULE_EXPORT_TYPE(type_sslcontext_),
+        MODULE_EXPORT_TYPE(type_sslsocket_),
         ARGON_MODULE_SENTINEL
 };
 

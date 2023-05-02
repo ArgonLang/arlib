@@ -2,18 +2,22 @@
 //
 // Licensed under the Apache License v2.0
 
-#include <openssl/ssl.h>
+#include <openssl/bio.h>
 #include <openssl/err.h>
+#include <openssl/ssl.h>
 
 #include <argon/vm/runtime.h>
+#include <argon/vm/io/io.h>
+#include <argon/vm/loop/evloop.h>
 
-#include <argon/vm/datatype/module.h>
+#include <argon/vm/datatype/nil.h>
 
 #include <version.h>
 
 #include <ssl/ssl.h>
 
 using namespace argon::vm::datatype;
+using namespace argon::vm::loop;
 using namespace argon::vm::io;
 using namespace arlib::ssl;
 
@@ -56,6 +60,328 @@ bool ConfigureHostname(SSLSocket *socket, const char *name, ArSize length) {
     return false;
 }
 
+CallbackReturnStatus HandshakeCallback(const Event *event, SSLSocket *socket, int status) {
+    int res;
+
+    if (event != nullptr && socket->want_status == SSL_ERROR_WANT_READ) {
+        if (BIO_write(socket->in_bio, event->buffer.data, (int) event->buffer.length) < 0) {
+            ErrorFormat(kSSLError[0], "handshake BIO_write error");
+
+            return CallbackReturnStatus::FAILURE;
+        }
+    }
+
+    socket->want_status = 0;
+
+    ERR_clear_error();
+
+    if ((res = SSL_do_handshake(socket->ssl)) == 1) {
+        assert(event != nullptr);
+
+        argon::vm::FiberSetAsyncResult(event->fiber, (ArObject *) Nil);
+
+        return CallbackReturnStatus::SUCCESS;
+    }
+
+    if (res < 0) {
+        switch (SSL_get_error(socket->ssl, res)) {
+            case SSL_ERROR_WANT_READ:
+                socket->want_status = SSL_ERROR_WANT_READ;
+
+                if ((res = BIO_read(socket->out_bio, socket->buffer.buffer, (int) socket->buffer.capacity)) < 0)
+                    res = 0;
+
+                if (!socket::SendRecvCB(socket->socket, (ArObject *) socket, (UserCB) HandshakeCallback,
+                                        socket->buffer.buffer, res, socket->buffer.capacity))
+                    return CallbackReturnStatus::FAILURE;
+
+                return CallbackReturnStatus::SUCCESS_NO_WAKEUP;
+            case SSL_ERROR_WANT_WRITE:
+                if ((res = BIO_read(socket->out_bio, socket->buffer.buffer, (int) socket->buffer.capacity)) < 0)
+                    res = 0;
+
+                if (!socket::SendCB(socket->socket, (ArObject *) socket, (UserCB) HandshakeCallback,
+                                    socket->buffer.buffer, res, 0))
+                    return CallbackReturnStatus::FAILURE;
+
+                return CallbackReturnStatus::SUCCESS_NO_WAKEUP;
+            default:
+                break;
+        }
+    }
+
+    SSLError();
+
+    return CallbackReturnStatus::FAILURE;
+}
+
+CallbackReturnStatus ReadCallback(const Event *event, SSLSocket *socket, int status) {
+    ArObject *ret;
+
+    size_t b_read;
+
+    int res = 0;
+
+    if (status < 0)
+        goto CLEANUP;
+
+    if (event != nullptr) {
+        if (socket->want_status == SSL_ERROR_WANT_READ) {
+            res = BIO_write(socket->in_bio, event->buffer.data, (int) event->buffer.length);
+            if (res < 0) {
+                ErrorFormat(kSSLError[0], "read BIO_write error");
+
+                goto CLEANUP;
+            }
+        }
+
+        socket->want_status = 0;
+
+        ERR_clear_error();
+
+        res = SSL_read_ex(socket->ssl, socket->user_buffer.buffer, socket->user_buffer.length, &b_read);
+        if (res == 1) {
+            if (socket->user_buffer.arBuffer.object == nullptr)
+                ret = (ArObject *) BytesNewHoldBuffer(socket->user_buffer.buffer, socket->user_buffer.length,
+                                                      b_read, true);
+            else
+                ret = (ArObject *) IntNew((IntegerUnderlying) b_read);
+
+            if (ret == nullptr)
+                goto CLEANUP;
+
+            if (socket->user_buffer.arBuffer.object != nullptr)
+                BufferRelease(&socket->user_buffer.arBuffer);
+
+            argon::vm::FiberSetAsyncResult(event->fiber, ret);
+
+            Release(ret);
+
+            return CallbackReturnStatus::SUCCESS;
+        }
+    }
+
+    switch (SSL_get_error(socket->ssl, res)) {
+        case SSL_ERROR_WANT_READ:
+            socket->want_status = SSL_ERROR_WANT_READ;
+
+            if ((res = BIO_read(socket->out_bio, socket->buffer.buffer, (int) socket->buffer.capacity)) < 0)
+                res = 0;
+
+            if (!socket::SendRecvCB(socket->socket, (ArObject *) socket, (UserCB) ReadCallback,
+                                    socket->buffer.buffer, res, socket->buffer.capacity))
+                goto CLEANUP;
+
+            return CallbackReturnStatus::SUCCESS_NO_WAKEUP;
+        case SSL_ERROR_WANT_WRITE:
+            if ((res = BIO_read(socket->out_bio, socket->buffer.buffer, (int) socket->buffer.capacity)) < 0)
+                res = 0;
+
+            if (!socket::SendCB(socket->socket, (ArObject *) socket, (UserCB) HandshakeCallback,
+                                socket->buffer.buffer, res, 0))
+                goto CLEANUP;
+
+            return CallbackReturnStatus::SUCCESS_NO_WAKEUP;
+        default:
+            break;
+    }
+
+    SSLError();
+
+    CLEANUP:
+    if (socket->user_buffer.arBuffer.buffer != nullptr)
+        BufferRelease(&socket->user_buffer.arBuffer);
+    else
+        argon::vm::memory::Free(socket->user_buffer.buffer);
+
+    return CallbackReturnStatus::FAILURE;
+}
+
+CallbackReturnStatus WriteCallback(const Event *event, SSLSocket *socket, int status) {
+    size_t written;
+
+    if (status < 0) {
+        BufferRelease(&socket->user_buffer.arBuffer);
+
+        return CallbackReturnStatus::FAILURE;
+    }
+
+    if (event != nullptr && socket->want_status == SSL_ERROR_WANT_READ) {
+        socket->want_status = 0;
+
+        if (BIO_write(socket->in_bio, event->buffer.data, (int) event->buffer.length) < 0) {
+            ErrorFormat(kSSLError[0], "write BIO_write error");
+
+            BufferRelease(&socket->user_buffer.arBuffer);
+
+            return CallbackReturnStatus::FAILURE;
+        }
+    }
+
+    socket->want_status = 0;
+
+    ERR_clear_error();
+
+    auto res = SSL_write_ex(socket->ssl, socket->user_buffer.buffer, socket->user_buffer.length, &written);
+    if (res == 1) {
+        auto b_written = BIO_read(socket->out_bio, socket->buffer.buffer, (int) socket->buffer.capacity);
+
+        BufferRelease(&socket->user_buffer.arBuffer);
+
+        if (!socket::Send(socket->socket, socket->buffer.buffer, b_written, 0))
+            return CallbackReturnStatus::FAILURE;
+
+        return CallbackReturnStatus::SUCCESS_NO_WAKEUP;
+    }
+
+    switch (SSL_get_error(socket->ssl, res)) {
+        case SSL_ERROR_WANT_READ:
+            socket->want_status = SSL_ERROR_WANT_READ;
+
+            if ((res = BIO_read(socket->out_bio, socket->buffer.buffer, (int) socket->buffer.capacity)) < 0)
+                res = 0;
+
+            if (!socket::SendRecvCB(socket->socket, (ArObject *) socket, (UserCB) WriteCallback,
+                                    socket->buffer.buffer, res, socket->buffer.capacity))
+                return CallbackReturnStatus::FAILURE;
+
+            return CallbackReturnStatus::SUCCESS_NO_WAKEUP;
+        case SSL_ERROR_WANT_WRITE:
+            if ((res = BIO_read(socket->out_bio, socket->buffer.buffer, (int) socket->buffer.capacity)) < 0)
+                res = 0;
+
+            if (!socket::SendCB(socket->socket, (ArObject *) socket, (UserCB) HandshakeCallback,
+                                socket->buffer.buffer, res, 0))
+                return CallbackReturnStatus::FAILURE;
+
+            return CallbackReturnStatus::SUCCESS_NO_WAKEUP;
+        default:
+            break;
+    }
+
+    BufferRelease(&socket->user_buffer.arBuffer);
+
+    SSLError();
+
+    return CallbackReturnStatus::FAILURE;
+}
+
+ARGON_METHOD(sslsocket_handshake, handshake,
+             "",
+             nullptr, false, false) {
+    auto *socket = (SSLSocket *) _self;
+
+    if (SSL_is_init_finished(socket->ssl))
+        return ARGON_NIL_VALUE;
+
+    HandshakeCallback(nullptr, socket, 0);
+
+    return nullptr;
+}
+
+// Inherited from Reader trait
+ARGON_METHOD_INHERITED(sslsocket_read, read) {
+    auto *socket = (SSLSocket *) _self;
+    IntegerUnderlying bufsize = ((Integer *) args[0])->sint;
+
+    size_t b_read;
+
+    if (bufsize < 0) {
+        ErrorFormat(kValueError[0], "size cannot be less than zero");
+
+        return nullptr;
+    }
+
+    if (bufsize == 0)
+        return (ArObject *) BytesNew(0, true, false, true);
+
+    socket->user_buffer.arBuffer.buffer = nullptr;
+
+    if ((socket->user_buffer.buffer = (unsigned char *) argon::vm::memory::Alloc(bufsize)) == nullptr)
+        return nullptr;
+
+    ERR_clear_error();
+
+    if (SSL_read_ex(socket->ssl, socket->user_buffer.buffer, socket->user_buffer.length, &b_read) > 0) {
+        auto *ret = BytesNewHoldBuffer(socket->user_buffer.buffer, socket->user_buffer.length, b_read, true);
+        if (ret == nullptr)
+            argon::vm::memory::Free(socket->user_buffer.buffer);
+
+        return (ArObject *) ret;
+    }
+
+    ReadCallback(nullptr, socket, 0);
+
+    return nullptr;
+}
+
+// Inherited from Reader trait
+ARGON_METHOD_INHERITED(sslsocket_readinto, readinto) {
+    auto *socket = (SSLSocket *) _self;
+    auto offset = ((Integer *) args[1])->sint;
+
+    size_t b_read;
+
+    if (offset < 0)
+        offset = 0;
+
+    if (!BufferGet(*args, &socket->user_buffer.arBuffer, BufferFlags::WRITE))
+        return nullptr;
+
+    socket->user_buffer.buffer = socket->user_buffer.arBuffer.buffer + offset;
+    socket->user_buffer.length = socket->user_buffer.arBuffer.length - offset;
+
+    ERR_clear_error();
+
+    if (SSL_read_ex(socket->ssl, socket->user_buffer.buffer, socket->user_buffer.length, &b_read) > 0) {
+        BufferRelease(&socket->user_buffer.arBuffer);
+
+        return (ArObject *) IntNew((IntegerUnderlying) b_read);
+    }
+
+    ReadCallback(nullptr, socket, 0);
+
+    return nullptr;
+}
+
+// Inherited from Writer trait
+ARGON_METHOD_INHERITED(sslsocket_write, write) {
+    auto *socket = (SSLSocket *) _self;
+
+    if (BufferGet(*args, &socket->user_buffer.arBuffer, BufferFlags::READ)) {
+        socket->user_buffer.buffer = socket->user_buffer.arBuffer.buffer;
+        socket->user_buffer.length = socket->user_buffer.arBuffer.length;
+
+        WriteCallback(nullptr, socket, 0);
+    }
+
+    return nullptr;
+}
+
+const FunctionDef sslsocket_methods[] = {
+        sslsocket_handshake,
+        sslsocket_read,
+        sslsocket_readinto,
+        sslsocket_write,
+
+        ARGON_METHOD_SENTINEL
+};
+
+TypeInfo *sslsocket_bases[] = {
+        (TypeInfo *) argon::vm::io::type_reader_t_,
+        (TypeInfo *) argon::vm::io::type_writer_t_,
+        nullptr
+};
+
+const ObjectSlots sslsocket_objslot = {
+        sslsocket_methods,
+        nullptr,
+        sslsocket_bases,
+        nullptr,
+        nullptr,
+        -1
+};
+
 bool sslsocket_dtor(SSLSocket *self) {
     Release(self->context);
     Release(self->hostname);
@@ -85,7 +411,7 @@ TypeInfo SSLSocketType = {
         nullptr,
         nullptr,
         nullptr,
-        nullptr,
+        &sslsocket_objslot,
         nullptr,
         nullptr,
         nullptr,
@@ -94,6 +420,10 @@ TypeInfo SSLSocketType = {
 const TypeInfo *arlib::ssl::type_sslsocket_ = &SSLSocketType;
 
 SSLSocket *arlib::ssl::SSLSocketNew(SSLContext *context, socket::Socket *socket, String *hostname, bool server_side) {
+    BIO *in_bio;
+    BIO *out_bio;
+    SSL *ssl;
+
     SSLSocket *sock;
 
     if (server_side && context->protocol == SSLProtocol::TLS_CLIENT) {
@@ -106,28 +436,62 @@ SSLSocket *arlib::ssl::SSLSocketNew(SSLContext *context, socket::Socket *socket,
         return nullptr;
     }
 
-    if ((sock = MakeObject<SSLSocket>(&SSLSocketType)) == nullptr)
-        return nullptr;
-
-    sock->context = IncRef(context);
-    sock->socket = IncRef(socket);
-    sock->hostname = IncRef(hostname);
-
     // Clear all SSL error
     ERR_clear_error();
 
-    if ((sock->ssl = SSL_new(context->ctx)) == nullptr) {
-        Release(sock);
+    if ((in_bio = BIO_new(BIO_s_mem())) == nullptr) {
+        ErrorFormat(kSSLError[0], "unable to allocate memory for read BIO");
+
+        return nullptr;
+    }
+
+    if ((out_bio = BIO_new(BIO_s_mem())) == nullptr) {
+        BIO_free(in_bio);
+
+        ErrorFormat(kSSLError[0], "unable to allocate memory for write BIO");
+
+        return nullptr;
+    }
+
+    if ((ssl = SSL_new(context->ctx)) == nullptr) {
+        BIO_free(in_bio);
+        BIO_free(out_bio);
 
         SSLError();
 
         return nullptr;
     }
 
-    SSL_set_app_data(sock->ssl, sock);
-    SSL_set_fd(sock->ssl, socket->sock);
+    SSL_set_bio(ssl, in_bio, out_bio);
 
-    SSL_set_mode(sock->ssl, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_AUTO_RETRY);
+    SSL_set_mode(ssl, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+
+    SSL_clear_mode(ssl, SSL_MODE_AUTO_RETRY);
+
+    if ((sock = MakeObject<SSLSocket>(&SSLSocketType)) == nullptr) {
+        SSL_free(ssl);
+
+        return nullptr;
+    }
+
+    sock->in_bio = in_bio;
+    sock->out_bio = out_bio;
+    sock->ssl = ssl;
+
+    sock->context = IncRef(context);
+    sock->socket = IncRef(socket);
+    sock->hostname = IncRef(hostname);
+
+    SSL_set_app_data(sock->ssl, sock);
+
+    if ((sock->buffer.buffer = (unsigned char *) argon::vm::memory::Alloc(kSSLWorkingBufferSize)) == nullptr) {
+        Release(sock);
+
+        return nullptr;
+    }
+
+    sock->buffer.length = 0;
+    sock->buffer.capacity = kSSLWorkingBufferSize;
 
     if (context->post_handshake && server_side) {
         int (*verify_cb)(int, X509_STORE_CTX *);
@@ -152,7 +516,7 @@ SSLSocket *arlib::ssl::SSLSocketNew(SSLContext *context, socket::Socket *socket,
         return nullptr;
     }
 
-    // TODO: asycn server_side ? SSL_set_accept_state(sock->ssl) : SSL_set_connect_state(sock->ssl);
+    server_side ? SSL_set_accept_state(sock->ssl) : SSL_set_connect_state(sock->ssl);
 
     sock->protocol = server_side ? SSLProtocol::TLS_SERVER : SSLProtocol::TLS_CLIENT;
 
