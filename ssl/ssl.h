@@ -5,6 +5,8 @@
 #ifndef ARLIB_SSL_SSL_H_
 #define ARLIB_SSL_SSL_H_
 
+#include <openssl/types.h>
+
 #include <argon/vm/datatype/arobject.h>
 #include <argon/vm/datatype/tuple.h>
 
@@ -71,7 +73,7 @@ namespace arlib::ssl {
 
             unsigned char *buffer;
             size_t length;
-        }user_buffer;
+        } user_buffer;
 
         SSLProtocol protocol;
 
@@ -81,11 +83,14 @@ namespace arlib::ssl {
 
     argon::vm::datatype::Error *SSLErrorNew();
 
+#ifdef _ARGON_PLATFORM_WINDOWS
+    argon::vm::datatype::Tuple *EnumWindowsCert(const char *store_name);
+#endif
+
     SSLContext *SSLContextNew(SSLProtocol protocol);
 
-    SSLSocket *
-    SSLSocketNew(SSLContext *context, argon::vm::io::socket::Socket *socket, argon::vm::datatype::String *hostname,
-                 bool server_side);
+    SSLSocket *SSLSocketNew(SSLContext *context, argon::vm::io::socket::Socket *socket,
+                            argon::vm::datatype::String *hostname, bool server_side);
 
     void SSLError();
 
