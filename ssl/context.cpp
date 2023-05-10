@@ -2,10 +2,6 @@
 //
 // Licensed under the Apache License v2.0
 
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#include <openssl/x509v3.h>
-
 #include <argon/vm/runtime.h>
 
 #include <argon/vm/datatype/boolean.h>
@@ -15,6 +11,12 @@
 #include <argon/vm/datatype/nil.h>
 
 #include <ssl/ssl.h>
+
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/x509v3.h>
+
+#undef ERROR // Windows MACRO
 
 using namespace argon::vm::datatype;
 using namespace arlib::ssl;
@@ -84,17 +86,20 @@ static bool SetVerifyMode(SSLContext *context, SSLVerify mode) {
 
 static int PasswordCallback(char *buf, int size, int rwflag, void *userdata) {
     auto *obj = (ArObject *) userdata;
-    const auto *s_pwd = (String *) obj;
+    String *s_pwd;
     int len;
 
     if (AR_TYPEOF(obj, type_function_)) {
-        assert(false);
-        // todo: callback
-    }
+        s_pwd = (String *) argon::vm::Eval((Function *) obj, nullptr, 0);
+        if (s_pwd == nullptr)
+            return -1;
+    } else
+        s_pwd = IncRef((String *) obj);
 
     if (!AR_TYPEOF(s_pwd, type_string_)) {
         ErrorFormat(kTypeError[0], "callback must return a string not '%s'", AR_TYPE_NAME(s_pwd));
 
+        Release(s_pwd);
         return -1;
     }
 
@@ -103,30 +108,84 @@ static int PasswordCallback(char *buf, int size, int rwflag, void *userdata) {
     if (len > size) {
         ErrorFormat(kValueError[0], "password cannot be longer than %d bytes", size);
 
+        Release(s_pwd);
         return -1;
     }
 
-    argon::vm::memory::MemoryCopy(buf, s_pwd->buffer, len);
+    argon::vm::memory::MemoryCopy(buf, ARGON_RAW_STRING(s_pwd), len);
+    Release(s_pwd);
 
     return len;
 }
 
 static int ServernameCallback(SSL *ssl, int *al, void *args) {
-    // TODO:
+    ArObject *call_arg[3] = {};
+    auto *ctx = (SSLContext *) args;
+    String *name;
 
-    assert(false);
+    if (IsNull(ctx->sni_callback))
+        return SSL_TLSEXT_ERR_OK;
 
-    return 0;
+    auto *sock = (SSLSocket *) SSL_get_app_data(ssl);
+    if (sock == nullptr) {
+        *al = SSL_AD_INTERNAL_ERROR;
+        return SSL_TLSEXT_ERR_ALERT_FATAL;
+    }
+
+    call_arg[0] = (ArObject *) ctx;
+    call_arg[1] = (ArObject *) sock;
+    call_arg[2] = (ArObject *) IncRef(Nil);
+
+    auto *servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
+    if (servername != nullptr) {
+        if ((name = StringNew(servername)) == nullptr) {
+            Release(call_arg[2]);
+
+            *al = SSL_AD_INTERNAL_ERROR;
+            return SSL_TLSEXT_ERR_ALERT_FATAL;
+        }
+
+        call_arg[2] = (ArObject *) name;
+    }
+
+    auto *result = argon::vm::Eval((Function *) ctx->sni_callback, call_arg, 3);
+
+    Release(call_arg[2]);
+
+    if (result == nullptr) {
+        *al = SSL_AD_HANDSHAKE_FAILURE;
+        return SSL_TLSEXT_ERR_ALERT_FATAL;
+    }
+
+    if ((ArObject *) result == (ArObject *) Nil) {
+        Release(result);
+
+        return SSL_TLSEXT_ERR_OK;
+    }
+
+    *al = SSL_AD_INTERNAL_ERROR;
+
+    if (AR_TYPEOF(result, type_int_))
+        *al = (int) ((Integer *) result)->sint;
+
+    Release(result);
+
+    return *al != SSL_AD_INTERNAL_ERROR ? SSL_TLSEXT_ERR_OK : SSL_TLSEXT_ERR_ALERT_FATAL;
 }
 
 ARGON_FUNCTION(sslcontext_sslcontext, SSLContext,
-               "i: protocol",
-               nullptr, false, false) {
+               "Create a new SSL context.\n"
+               "\n"
+               "- Parameter protocol: Specifies which version of the SSL protocol to use.\n"
+               "- Returns: SSLContext.\n",
+               "i: protocol", false, false) {
     return (ArObject *) SSLContextNew((SSLProtocol) ((Integer *) *args)->sint);
 }
 
 ARGON_METHOD(sslcontext_get_stats, get_stats,
-             "",
+             "Get statistics about the SSL sessions managed by this context.\n"
+             "\n"
+             "- Returns: A dictionary that maps the names of any pieces of information to their numerical values.\n",
              nullptr, false, false) {
 #define ADD_STAT(SSLNAME, KEY)                                          \
     if((tmp = IntNew(SSL_CTX_sess_##SSLNAME(self->ctx))) == nullptr)    \
@@ -143,7 +202,7 @@ ARGON_METHOD(sslcontext_get_stats, get_stats,
     if ((dict = DictNew()) == nullptr)
         return nullptr;
 
-    // TODO: UniqueLock lock(ctx->lock);
+    std::unique_lock _(self->lock);
 
     ADD_STAT(number, "number");
     ADD_STAT(connect, "connect");
@@ -167,7 +226,15 @@ ARGON_METHOD(sslcontext_get_stats, get_stats,
 }
 
 ARGON_METHOD(sslcontext_load_cadata, load_cadata,
-             "",
+             "Load a set of CA certificates used to validate other peers certificates.\n"
+             "\n"
+             "Verify mode must be different from CERT_NONE to perform validation.\n"
+             "\n"
+             "- Parameter cadata: Bytes-like object of DER-encoded certificates.\n"
+             "\n"
+             "- See Also:\n"
+             "  - load_cafile\n"
+             "  - load_capath\n",
              "x: cadata, i: filetype", false, false) {
     ArBuffer buffer{};
     auto *self = (SSLContext *) _self;
@@ -189,7 +256,7 @@ ARGON_METHOD(sslcontext_load_cadata, load_cadata,
         return nullptr;
     }
 
-    if ((biobuf = BIO_new_mem_buf(buffer.buffer, buffer.length)) == nullptr) {
+    if ((biobuf = BIO_new_mem_buf(buffer.buffer, (int) buffer.length)) == nullptr) {
         BufferRelease(&buffer);
 
         SSLError();
@@ -199,7 +266,7 @@ ARGON_METHOD(sslcontext_load_cadata, load_cadata,
 
     BufferRelease(&buffer);
 
-    // TODO: UniqueLock lock(ctx->lock);
+    std::unique_lock _(self->lock);
 
     store = SSL_CTX_get_cert_store(self->ctx);
     assert(store != nullptr);
@@ -267,11 +334,21 @@ ARGON_METHOD(sslcontext_load_cadata, load_cadata,
 }
 
 ARGON_METHOD(sslcontext_load_cafile, load_cafile,
-             "",
+             "Load a set of CA certificates used to validate other peers certificates.\n"
+             "\n"
+             "Verify mode must be different from CERT_NONE to perform validation.\n"
+             "\n"
+             "- Parameter cafile: Path to a file of concatenated CA certificates in PEM format.\n"
+             "\n"
+             "- See Also:\n"
+             "  - load_cadata\n"
+             "  - load_capath\n",
              "s: cafile", false, false) {
     auto *self = (SSLContext *) _self;
 
-    // TODO: UniqueLock lock(ctx->lock);
+    std::unique_lock _(self->lock);
+
+    ERR_clear_error();
 
     errno = 0;
     if (SSL_CTX_load_verify_locations(self->ctx, (const char *) ARGON_RAW_STRING((String *) *args), nullptr) != 1) {
@@ -287,11 +364,22 @@ ARGON_METHOD(sslcontext_load_cafile, load_cafile,
 }
 
 ARGON_METHOD(sslcontext_load_capath, load_capath,
-             "",
+             "Load a set of CA certificates used to validate other peers certificates.\n"
+             "\n"
+             "Verify mode must be different from CERT_NONE to perform validation.\n"
+             "\n"
+             "- Parameter capath: Path to a directory containing several CA certificates in PEM format, "
+             "following an OpenSSL specific layout.\n"
+             "\n"
+             "- See Also:\n"
+             "  - load_cadata\n"
+             "  - load_cafile\n",
              "s: capath", false, false) {
     auto *self = (SSLContext *) _self;
 
-    // TODO: UniqueLock lock(ctx->lock);
+    std::unique_lock _(self->lock);
+
+    ERR_clear_error();
 
     errno = 0;
     if (SSL_CTX_load_verify_locations(self->ctx, nullptr, (const char *) ARGON_RAW_STRING((String *) *args)) != 1) {
@@ -307,7 +395,12 @@ ARGON_METHOD(sslcontext_load_capath, load_capath,
 }
 
 ARGON_METHOD(sslcontext_load_cert_chain, load_cert_chain,
-             "",
+             "Load a private key and the corresponding certificate.\n"
+             "\n"
+             "- Parameter certfile: Path to a single file in PEM format.\n"
+             "- KWParameters:\n"
+             "  - keyfile: Path to a file containing the private key.\n"
+             "  - password: A string containing the password or a function that will be used to decrypt the private key.\n",
              "s: certfile", false, false) {
     auto *self = (SSLContext *) _self;
     auto *certfile = (String *) IncRef(args[0]);
@@ -335,7 +428,7 @@ ARGON_METHOD(sslcontext_load_cert_chain, load_cert_chain,
         }
     }
 
-    // TODO: UniqueLock lock(ctx->lock);
+    std::unique_lock _(self->lock);
 
     orig_pwd_cb = SSL_CTX_get_default_passwd_cb(self->ctx);
     orig_pwd_userdata = SSL_CTX_get_default_passwd_cb_userdata(self->ctx);
@@ -354,6 +447,8 @@ ARGON_METHOD(sslcontext_load_cert_chain, load_cert_chain,
         SSL_CTX_set_default_passwd_cb(self->ctx, PasswordCallback);
         SSL_CTX_set_default_passwd_cb_userdata(self->ctx, callback);
     }
+
+    ERR_clear_error();
 
     errno = 0;
     if (SSL_CTX_use_certificate_chain_file(self->ctx, (const char *) ARGON_RAW_STRING(certfile)) != 1) {
@@ -397,16 +492,15 @@ ARGON_METHOD(sslcontext_load_cert_chain, load_cert_chain,
 }
 
 ARGON_METHOD(sslcontext_load_path_default, load_path_default,
-             "",
+             "Load a set of default CA certificates from a filesystem path defined when building the OpenSSL library.\n",
              nullptr, false, false) {
     auto *self = (SSLContext *) _self;
 
-    // TODO: UniqueLock lock(ctx->lock);
+    std::unique_lock _(self->lock);
 
+    ERR_clear_error();
     if (!SSL_CTX_set_default_verify_paths(self->ctx)) {
         SSLError();
-
-        ERR_clear_error();
 
         return nullptr;
     }
@@ -415,13 +509,15 @@ ARGON_METHOD(sslcontext_load_path_default, load_path_default,
 }
 
 ARGON_METHOD(sslcontext_set_check_hostname, set_check_hostname,
-             "",
+             "Sets whether to check host name match during handshake.\n"
+             "\n"
+             "- Parameter check: Boolean indicating whether or not to check.\n",
              "b: check", false, false) {
     auto *self = (SSLContext *) _self;
 
     bool check = ArBoolToBool((Boolean *) *args);
 
-    // TODO: UniqueLock lock(ctx->lock);
+    std::unique_lock _(self->lock);
 
     if (check && SSL_CTX_get_verify_mode(self->ctx) == SSL_VERIFY_NONE)
         SetVerifyMode(self, SSLVerify::CERT_REQUIRED);
@@ -432,16 +528,17 @@ ARGON_METHOD(sslcontext_set_check_hostname, set_check_hostname,
 }
 
 ARGON_METHOD(sslcontext_set_ciphers, set_ciphers,
-             "",
+             "Set the available ciphers for sockets created with this context.\n"
+             "\n"
+             "- Parameter cipher: It should be a string in the OpenSSL cipher list format.\n",
              "s: cipher", false, false) {
     auto *self = (SSLContext *) _self;
 
-    // TODO: UniqueLock lock(ctx->lock);
+    std::unique_lock _(self->lock);
 
+    ERR_clear_error();
     if (SSL_CTX_set_cipher_list(self->ctx, (const char *) ARGON_RAW_STRING((String *) *args)) == 0) {
         SSLError();
-
-        ERR_clear_error();
 
         return nullptr;
     }
@@ -450,11 +547,13 @@ ARGON_METHOD(sslcontext_set_ciphers, set_ciphers,
 }
 
 ARGON_METHOD(sslcontext_set_max_version, set_max_version,
-             "",
+             "Set the maximum supported protocol versions.\n"
+             "\n"
+             "- Parameter version: Maximum version.\n",
              "i: version", false, false) {
     auto *self = (SSLContext *) _self;
 
-    // TODO: UniqueLock lock(ctx->lock);
+    std::unique_lock _(self->lock);
 
     if (!MinMaxProtoVersion(self, (unsigned int) ((Integer *) *args)->sint, true))
         return nullptr;
@@ -463,11 +562,13 @@ ARGON_METHOD(sslcontext_set_max_version, set_max_version,
 }
 
 ARGON_METHOD(sslcontext_set_min_version, set_min_version,
-             "",
+             "Like set_max_version except it is set the lowest supported version.\n"
+             "\n"
+             "- Parameter version: Minimum version.\n",
              "i: version", false, false) {
     auto *self = (SSLContext *) _self;
 
-    // TODO: UniqueLock lock(ctx->lock);
+    std::unique_lock _(self->lock);
 
     if (!MinMaxProtoVersion(self, (unsigned int) ((Integer *) *args)->sint, false))
         return nullptr;
@@ -476,13 +577,15 @@ ARGON_METHOD(sslcontext_set_min_version, set_min_version,
 }
 
 ARGON_METHOD(sslcontext_set_num_tickets, set_num_tickets,
-             "",
+             "Control the number of TLS 1.3 session tickets.\n"
+             "\n"
+             "- Parameter ticket: Number of tickets.\n",
              "i: ticket", false, false) {
     auto *self = (SSLContext *) _self;
 
-    unsigned long ticket = ((Integer *) *args)->sint;
+    auto ticket = ((Integer *) *args)->sint;
 
-    // TODO: UniqueLock lock(ctx->lock);
+    std::unique_lock _(self->lock);
 
     if (self->protocol != SSLProtocol::TLS_SERVER) {
         ErrorFormat(kSSLError[0], "not a server context");
@@ -490,7 +593,7 @@ ARGON_METHOD(sslcontext_set_num_tickets, set_num_tickets,
         return nullptr;
     }
 
-    if (SSL_CTX_set_num_tickets(self->ctx, ticket) != 1) {
+    if (SSL_CTX_set_num_tickets(self->ctx, (unsigned long) ticket) != 1) {
         ErrorFormat(kSSLError[0], "failed to set num tickets");
 
         return nullptr;
@@ -500,11 +603,26 @@ ARGON_METHOD(sslcontext_set_num_tickets, set_num_tickets,
 }
 
 ARGON_METHOD(sslcontext_set_sni, set_sni,
-             "",
+             "Register a callback function that will be called after the TLS Client Hello handshake.\n"
+             "\n"
+             "Only one callback can be set per SSLContext. If callback is set to nil then the callback is disabled. "
+             "Calling this function a subsequent time will disable the previously registered callback.\n"
+             "The callback function will be called with three arguments;\n"
+             " * Original SSLContext.\n"
+             " * SSLSocket.\n"
+             " * String that represents the server name (or nil if the TLS Client Hello does not contain a server name).\n"
+             "\n"
+             "sni_callback(ctx, ssock, hname)"
+             "\n"
+             "The sni_callback function must return Nil to allow the TLS negotiation to continue. "
+             "If a TLS failure is required, a constant AD_* can be returned. "
+             "Other return values will result in a TLS fatal error with SSL_AD_INTERNAL_ERROR."
+             "\n"
+             "- Parameter callback: Callback function.\n",
              ": callback", false, false) {
     auto *self = (SSLContext *) _self;
 
-    // TODO: UniqueLock lock(ctx->lock);
+    std::unique_lock _(self->lock);
 
     if (self->protocol == SSLProtocol::TLS_CLIENT) {
         ErrorFormat(kValueError[0], "sni callback cannot be set on TLS_CLIENT");
@@ -529,13 +647,17 @@ ARGON_METHOD(sslcontext_set_sni, set_sni,
 }
 
 ARGON_METHOD(sslcontext_set_verify, set_verify,
-             "",
+             "Set whether to verify other peers' certificates and how to behave if verification fails.\n"
+             "\n"
+             "This attribute must be one of CERT_NONE, CERT_OPTIONAL or CERT_REQUIRED.\n"
+             "\n"
+             "- Parameter verify: Verify mode CERT_NONE or CERT_OPTIONAL or CERT_REQUIRED.\n",
              "i: verify", false, false) {
     auto *self = (SSLContext *) _self;
 
     auto flag = (SSLVerify) ((Integer *) args[0])->sint;
 
-    // todo: UniqueLock lock(ctx->lock);
+    std::unique_lock _(self->lock);
 
     if (flag == SSLVerify::CERT_NONE && self->check_hname) {
         ErrorFormat(kSSLError[0], "cannot set verify mode to CERT_NONE when check hostname is enabled");
@@ -549,7 +671,11 @@ ARGON_METHOD(sslcontext_set_verify, set_verify,
 }
 
 ARGON_METHOD(sslcontext_set_verify_flags, set_verify_flags,
-             "",
+             "Sets the flags for certificate verification operations.\n"
+             "\n"
+             "By default OpenSSL does neither require nor verify certificate revocation lists (CRLs).\n"
+             "\n"
+             "- Parameter flags: Verification flags.\n",
              "i: flags", false, false) {
     auto *self = (SSLContext *) _self;
     X509_VERIFY_PARAM *param;
@@ -559,12 +685,14 @@ ARGON_METHOD(sslcontext_set_verify_flags, set_verify_flags,
 
     auto new_flags = ((Integer *) args[0])->sint;
 
-    // todo: UniqueLock lock(ctx->lock);
+    std::unique_lock _(self->lock);
 
     param = SSL_CTX_get0_param(self->ctx);
     flags = X509_VERIFY_PARAM_get_flags(param);
     clear = flags & ~new_flags;
     set = ~flags & new_flags;
+
+    ERR_clear_error();
 
     if (clear && !X509_VERIFY_PARAM_clear_flags(param, clear)) {
         SSLError();
@@ -582,7 +710,14 @@ ARGON_METHOD(sslcontext_set_verify_flags, set_verify_flags,
 }
 
 ARGON_METHOD(sslcontext_wrap, wrap,
-             "",
+             "Wrap an existing socket and return an instance of SSLSocket.\n"
+             "\n"
+             "- Parameters:\n"
+             "  - socket: Existing Argon socket.\n"
+             "  - server_side: Boolean which identifies whether server-side or client-side behavior is desired from this socket.\n"
+             "- KWParameters:\n"
+             "  - hostname: String specifies the hostname of the service which we are connecting to.\n"
+             "- Returns: New SSLSocket instance.\n",
              ": socket, b: server_side", false, false) {
     String *hostname = nullptr;
     SSLSocket *sock;
@@ -592,7 +727,7 @@ ARGON_METHOD(sslcontext_wrap, wrap,
         if (hostname == nullptr && argon::vm::IsPanicking())
             return nullptr;
 
-        if (hostname != nullptr && AR_TYPEOF(hostname, type_string_)) {
+        if (hostname != nullptr && !AR_TYPEOF(hostname, type_string_)) {
             ErrorFormat(kTypeError[0], kTypeError[2], type_string_->name, AR_TYPE_QNAME(hostname));
 
             Release(hostname);
@@ -601,7 +736,7 @@ ARGON_METHOD(sslcontext_wrap, wrap,
         }
     }
 
-    // todo: UniqueLock lock(ctx->lock);
+    std::unique_lock _(((SSLContext *) _self)->lock);
 
     sock = SSLSocketNew((SSLContext *) _self,
                         (argon::vm::io::socket::Socket *) args[0],
@@ -634,14 +769,14 @@ const FunctionDef sslcontext_methods[] = {
         ARGON_METHOD_SENTINEL
 };
 
-ArObject *security_level_get(const SSLContext *context) {
-    // todo: UniqueLock lock(context->lock);
+ArObject *security_level_get(SSLContext *context) {
+    std::unique_lock _(context->lock);
 
     return (ArObject *) IntNew(SSL_CTX_get_security_level(context->ctx));
 }
 
-ArObject *session_ticket_get(const SSLContext *context) {
-    // todo: UniqueLock lock(context->lock);
+ArObject *session_ticket_get(SSLContext *context) {
+    std::unique_lock _(context->lock);
 
     return (ArObject *) UIntNew(SSL_CTX_get_num_tickets(context->ctx));
 }
@@ -667,7 +802,10 @@ const ObjectSlots sslcontext_objslot = {
 
 bool sslcontext_dtor(SSLContext *self) {
     SSL_CTX_free(self->ctx);
+
     Release(self->sni_callback);
+
+    self->lock.~mutex();
 
     return true;
 }
@@ -725,9 +863,13 @@ SSLContext *arlib::ssl::SSLContextNew(SSLProtocol protocol) {
 
     if ((ctx->ctx = SSL_CTX_new(method)) == nullptr) {
         Release(ctx);
+
         SSLError();
+
         return nullptr;
     }
+
+    new(&ctx->lock)std::mutex();
 
     ctx->sni_callback = nullptr;
     ctx->protocol = protocol;

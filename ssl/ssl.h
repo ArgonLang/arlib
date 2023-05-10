@@ -5,12 +5,12 @@
 #ifndef ARLIB_SSL_SSL_H_
 #define ARLIB_SSL_SSL_H_
 
-#include <openssl/types.h>
-
 #include <argon/vm/datatype/arobject.h>
 #include <argon/vm/datatype/tuple.h>
 
 #include <argon/vm/io/socket/socket.h>
+
+#include <openssl/types.h>
 
 namespace arlib::ssl {
     constexpr const char *kSSLError[] = {
@@ -33,6 +33,8 @@ namespace arlib::ssl {
 
     struct SSLContext {
         AROBJ_HEAD;
+
+        std::mutex lock;
 
         argon::vm::datatype::ArObject *sni_callback;
 
@@ -80,6 +82,10 @@ namespace arlib::ssl {
         int want_status;
     };
     extern const argon::vm::datatype::TypeInfo *type_sslsocket_;
+
+    argon::vm::datatype::Bytes *CertToDer(X509 *cert);
+
+    argon::vm::datatype::Dict *DecodeCert(X509 *cert);
 
     argon::vm::datatype::Error *SSLErrorNew();
 

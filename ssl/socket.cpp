@@ -5,16 +5,18 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#include <openssl/x509v3.h>
 
 #include <argon/vm/runtime.h>
 #include <argon/vm/io/io.h>
 #include <argon/vm/loop/evloop.h>
 
+#include <argon/vm/datatype/boolean.h>
 #include <argon/vm/datatype/nil.h>
 
-#include <version.h>
-
 #include <ssl/ssl.h>
+
+#undef ERROR
 
 using namespace argon::vm::datatype;
 using namespace argon::vm::loop;
@@ -344,6 +346,24 @@ ARGON_METHOD_INHERITED(sslsocket_readinto, readinto) {
     return nullptr;
 }
 
+ARGON_METHOD(sslsocket_unwrap, unwrap,
+             "",
+             nullptr, false, false) {
+    return nullptr;
+}
+
+ARGON_METHOD(sslsocket_verify_client, verify_client,
+             "",
+             nullptr, false, false) {
+    if (SSL_verify_client_post_handshake(((SSLSocket *) _self)->ssl) == 0) {
+        SSLError();
+
+        return nullptr;
+    }
+
+    return ARGON_NIL_VALUE;
+}
+
 // Inherited from Writer trait
 ARGON_METHOD_INHERITED(sslsocket_write, write) {
     auto *socket = (SSLSocket *) _self;
@@ -362,9 +382,131 @@ const FunctionDef sslsocket_methods[] = {
         sslsocket_handshake,
         sslsocket_read,
         sslsocket_readinto,
+        sslsocket_verify_client,
+        sslsocket_unwrap,
         sslsocket_write,
 
         ARGON_METHOD_SENTINEL
+};
+
+ArObject *alpn_selected_get(const SSLSocket *self) {
+    const unsigned char *out;
+    unsigned int outlen;
+
+    // TODO: UniqueLock lock(self->lock);
+
+    SSL_get0_alpn_selected(self->ssl, &out, &outlen);
+
+    if (out == nullptr)
+        return ARGON_NIL_VALUE;
+
+    return (ArObject *) StringNew((const char *) out, outlen);
+}
+
+Tuple *CipherToTuple(const SSL_CIPHER *cipher) {
+    const char *name;
+    const char *proto;
+    int bits;
+
+    name = SSL_CIPHER_get_name(cipher);
+    proto = SSL_CIPHER_get_version(cipher);
+    bits = SSL_CIPHER_get_bits(cipher, nullptr);
+
+    return TupleNew("ssi", name, proto, bits);
+}
+
+ArObject *cipher_get(const SSLSocket *self) {
+    // TODO: UniqueLock lock(self->lock);
+    const SSL_CIPHER *current;
+
+    if ((current = SSL_get_current_cipher(self->ssl)) == nullptr)
+        return ARGON_NIL_VALUE;
+
+    return (ArObject *) CipherToTuple(current);
+}
+
+ArObject *compression_get(const SSLSocket *self) {
+    // TODO: UniqueLock lock(self->lock);
+
+    const COMP_METHOD *comp_method;
+    const char *name;
+
+    comp_method = SSL_get_current_compression(self->ssl);
+    if (comp_method == nullptr || COMP_get_type(comp_method) == NID_undef)
+        return ARGON_NIL_VALUE;
+
+    name = OBJ_nid2sn(COMP_get_type(comp_method));
+    if (name == nullptr)
+        return ARGON_NIL_VALUE;
+
+    return (ArObject *) StringNew(name);
+}
+
+ArObject *pending_get(const SSLSocket *self) {
+    // TODO: UniqueLock lock(self->lock);
+
+    auto length = SSL_pending(self->ssl);
+
+    return (ArObject *) IntNew(length);
+}
+
+ArObject *session_reused_get(const SSLSocket *self) {
+    // TODO: UniqueLock lock(self->lock);
+    return BoolToArBool(SSL_session_reused(self->ssl));
+}
+
+ArObject *shared_cipher_get(const SSLSocket *self) {
+    // TODO: UniqueLock lock(self->lock);
+    STACK_OF(SSL_CIPHER) *ciphers;
+    Tuple *ret;
+    int length;
+
+    if ((ciphers = SSL_get_ciphers(self->ssl)) == nullptr)
+        return ARGON_NIL_VALUE;
+
+    length = sk_SSL_CIPHER_num(ciphers);
+
+    if ((ret = TupleNew(length)) == nullptr)
+        return nullptr;
+
+    for (int i = 0; i < length; i++) {
+        auto *tmp = (ArObject *) CipherToTuple(sk_SSL_CIPHER_value(ciphers, i));
+
+        if (tmp == nullptr) {
+            Release(ret);
+            return nullptr;
+        }
+
+        TupleInsert(ret, tmp, i);
+
+        Release(tmp);
+    }
+
+    return (ArObject *) ret;
+}
+
+ArObject *version_get(SSLSocket *self) {
+    // TODO: UniqueLock lock(self->lock);
+    const char *version;
+
+    if (!SSL_is_init_finished(self->ssl))
+        return ARGON_NIL_VALUE;
+
+    version = SSL_get_version(self->ssl);
+
+    return (ArObject *) StringNew(version);
+}
+
+const MemberDef sslsocket_members[] = {
+        ARGON_MEMBER_GETSET("alpn_selected", (MemberGetFn) alpn_selected_get, nullptr),
+        ARGON_MEMBER_GETSET("cipher", (MemberGetFn) cipher_get, nullptr),
+        ARGON_MEMBER_GETSET("compression", (MemberGetFn) compression_get, nullptr),
+        ARGON_MEMBER("hostname", MemberType::OBJECT, offsetof(SSLSocket, hostname), true),
+        ARGON_MEMBER_GETSET("pending", (MemberGetFn) pending_get, nullptr),
+        ARGON_MEMBER_GETSET("session_reused", (MemberGetFn) session_reused_get, nullptr),
+        ARGON_MEMBER_GETSET("shared_cipher", (MemberGetFn) shared_cipher_get, nullptr),
+        ARGON_MEMBER_GETSET("version", (MemberGetFn) version_get, nullptr),
+        ARGON_MEMBER_SENTINEL
 };
 
 TypeInfo *sslsocket_bases[] = {
@@ -375,7 +517,7 @@ TypeInfo *sslsocket_bases[] = {
 
 const ObjectSlots sslsocket_objslot = {
         sslsocket_methods,
-        nullptr,
+        sslsocket_members,
         sslsocket_bases,
         nullptr,
         nullptr,
