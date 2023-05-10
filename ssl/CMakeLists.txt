@@ -8,10 +8,15 @@ find_package(OpenSSL REQUIRED)
 add_library(${PROJECT_NAME} SHARED
         context.cpp
         socket.cpp
-        ssl.cpp)
+        ssl.cpp
+        winssl.cpp)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "_")
 
 set_target_properties(${PROJECT_NAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${SSL_OUTPUT_DIRECTORY})
 
-target_link_libraries(${PROJECT_NAME} PRIVATE Argon::ArgonVM OpenSSL::SSL)
+if (WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE Argon::ArgonVM OpenSSL::SSL crypt32.lib)
+else()
+    target_link_libraries(${PROJECT_NAME} PRIVATE Argon::ArgonVM OpenSSL::SSL)
+endif ()
