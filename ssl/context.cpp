@@ -491,7 +491,7 @@ ARGON_METHOD(sslcontext_load_cert_chain, load_cert_chain,
     return nullptr;
 }
 
-ARGON_METHOD(sslcontext_load_path_default, load_path_default,
+ARGON_METHOD(sslcontext_load_paths_default, load_paths_default,
              "Load a set of default CA certificates from a filesystem path defined when building the OpenSSL library.\n",
              nullptr, false, false) {
     auto *self = (SSLContext *) _self;
@@ -756,7 +756,7 @@ const FunctionDef sslcontext_methods[] = {
         sslcontext_load_cafile,
         sslcontext_load_capath,
         sslcontext_load_cert_chain,
-        sslcontext_load_path_default,
+        sslcontext_load_paths_default,
         sslcontext_set_check_hostname,
         sslcontext_set_ciphers,
         sslcontext_set_max_version,
