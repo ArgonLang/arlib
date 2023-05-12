@@ -10,6 +10,8 @@
 
 #include <argon/vm/io/socket/socket.h>
 
+#include <argon/vm/sync/mutex.h>
+
 #include <openssl/types.h>
 
 namespace arlib::ssl {
@@ -51,6 +53,8 @@ namespace arlib::ssl {
 
     struct SSLSocket {
         AROBJ_HEAD;
+
+        argon::vm::sync::Mutex lock;
 
         SSLContext *context;
 

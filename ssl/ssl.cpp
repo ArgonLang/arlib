@@ -62,6 +62,12 @@ bool SSLInit(Module *self) {
     AddIntConstant(PROTO_TLS_CLIENT, (int) SSLProtocol::TLS_CLIENT);
     AddIntConstant(PROTO_TLS_SERVER, (int) SSLProtocol::TLS_SERVER);
 
+    AddIntConstant(VERSION_SSL3, SSL3_VERSION);
+    AddIntConstant(VERSION_TLS1, TLS1_VERSION);
+    AddIntConstant(VERSION_TLS11, TLS1_1_VERSION);
+    AddIntConstant(VERSION_TLS12, TLS1_2_VERSION);
+    AddIntConstant(VERSION_TLS13, TLS1_3_VERSION);
+
     AddIntConstant(FILETYPE_ASN1, SSL_FILETYPE_ASN1);
     AddIntConstant(FILETYPE_PEM, SSL_FILETYPE_PEM);
 
