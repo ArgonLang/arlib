@@ -20,3 +20,6 @@ if (WIN32)
 else()
     target_link_libraries(${PROJECT_NAME} PRIVATE Argon::ArgonVM OpenSSL::SSL)
 endif ()
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/ssl.ar" ${SSL_OUTPUT_DIRECTORY})

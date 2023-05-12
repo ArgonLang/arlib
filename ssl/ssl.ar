@@ -1,0 +1,22 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+*/
+
+import "socket"
+from "ssl/_ssl" import *
+
+pub let DEFAULT_CONTEXT = SSLContext(PROTO_TLS)
+
+DEFAULT_CONTEXT.load_paths_default()
+
+pub func connect(address, do_handshake) {
+    var sock = socket.dial("tcp", address)
+
+    sock = DEFAULT_CONTEXT.wrap(sock, false)
+
+    do_handshake ? sock.handshake()
+
+    return sock
+}
