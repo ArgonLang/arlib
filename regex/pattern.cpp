@@ -8,6 +8,8 @@
 #include <argon/vm/datatype/integer.h>
 #include <argon/vm/datatype/bytes.h>
 
+#include <argon/vm/runtime.cpp>
+
 #include <regex/regex.h>
 
 using namespace argon::vm::datatype;
@@ -16,17 +18,14 @@ using namespace arlib::regex;
 ARGON_FUNCTION(pattern_pattern, Pattern,
                "Compile a regular expression pattern into a Pattern object.\n"
                "\n"
-               "- Parameters:"
-               "  - pattern: Regex pattern.\n"
-               "  - options: Option flags.\n"
+               "- Parameters pattern: Regex pattern.\n"
+               "- KWParameters:\n"
+               "  - options: Options flag.\n"
                "- Returns: Pattern object.\n",
-               "sx: pattern, ui: options", false, false) {
+               "sx: pattern", false, true) {
     unsigned int opt;
 
-    opt = (unsigned int) ((Integer *) args[1])->sint;
-
-    if (AR_TYPEOF(args[1], type_uint_))
-        opt = (unsigned int) ((Integer *) args[1])->uint;
+    opt = (unsigned int) DictLookupInt((Dict *) kwargs, "options", 0);
 
     return (ArObject *) PatternNew(args[0], opt);
 }

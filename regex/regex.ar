@@ -7,17 +7,17 @@
 from "regex/_regex" import *
 
 pub func findall(data, pattern) {
-    return Pattern(pattern, 0).findall(data)
+    return Pattern(pattern).findall(data)
 }
 
 pub func find(data, pattern) {
-    return Pattern(pattern, 0).find(data)
+    return Pattern(pattern).find(data)
 }
 
 pub func replace(data, replace, pattern) {
-    return Pattern(pattern, 0).replace(data, replace)
+    return Pattern(pattern).replace(data, replace)
 }
 
 pub func split(data, pattern) {
-    return Pattern(pattern, 0).split(data)
+    return Pattern(pattern).split(data)
 }
