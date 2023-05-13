@@ -20,11 +20,12 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif ()
 
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/version.h")
+
 find_package(Stratum REQUIRED)
 find_package(Argon REQUIRED)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 add_subdirectory(regex)
-
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/version.h")
+add_subdirectory(ssl)
