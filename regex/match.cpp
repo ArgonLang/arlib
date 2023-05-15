@@ -93,6 +93,38 @@ const ObjectSlots match_objslot = {
         -1
 };
 
+ArObject *match_get_item(Match *self, ArObject *index) {
+    IntegerUnderlying idx;
+
+    if (!AR_TYPEOF(index, type_int_)){
+        ErrorFormat(kTypeError[0], kTypeError[2], type_int_->name, AR_TYPE_NAME(index));
+
+        return nullptr;
+    }
+
+    idx = ((const Integer *) index)->sint;
+    if (idx < 0 || idx >= self->g_count) {
+        ErrorFormat(kValueError[0], "%d no such group", index);
+
+        return nullptr;
+    }
+
+    return IncRef(self->groups[idx].chunk);
+}
+
+ArSize match_length(const Match *self) {
+    return self->g_count;
+}
+
+const SubscriptSlots match_subscript = {
+        (ArSize_UnaryOp )match_length,
+        (BinaryOp)match_get_item,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr
+};
+
 ArObject *match_compare(const Match *self, ArObject *other, CompareMode mode) {
     const auto *o = (Match *) other;
 
@@ -152,7 +184,7 @@ TypeInfo MatchType = {
         nullptr,
         nullptr,
         &match_objslot,
-        nullptr,
+        &match_subscript,
         nullptr,
         nullptr,
         nullptr
