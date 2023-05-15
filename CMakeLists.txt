@@ -20,6 +20,8 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif ()
 
+file(COPY scripts/ DESTINATION ${BASE_OUTPUT_DIRECTORY})
+
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/version.h")
 
 find_package(Stratum REQUIRED)
