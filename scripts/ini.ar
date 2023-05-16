@@ -52,6 +52,8 @@ import "regex" as re
 
 from "error" import TypeError
 
+pub let __version = "@PROJECT_VERSION@"
+
 let INI_COMMENTS = re.Pattern(r#"\s*[;|#].*"#)
 let INI_SECTION = re.Pattern(r#"\s*\[(.+?)\]\s*$"#)
 let INI_KONLY = re.Pattern(r#"\s*(.+)?\s*$"#)

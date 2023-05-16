@@ -20,14 +20,24 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif ()
 
-file(COPY scripts/ DESTINATION ${BASE_OUTPUT_DIRECTORY})
-
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/version.h")
 
 find_package(Stratum REQUIRED)
 find_package(Argon REQUIRED)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
+# *** Configure Argon scripts ***
+
+set(SCRIPTS_DIRECTORY "${PROJECT_SOURCE_DIR}/scripts")
+
+file(GLOB_RECURSE SCRIPTS "${SCRIPTS_DIRECTORY}/*.ar")
+foreach(SCRIPT ${SCRIPTS})
+    string(REPLACE ${SCRIPTS_DIRECTORY} ${BASE_OUTPUT_DIRECTORY} SCRIPT_DEST ${SCRIPT})
+    configure_file(${SCRIPT} ${SCRIPT_DEST})
+endforeach()
+
+# *** Native modules ***
 
 add_subdirectory(regex)
 add_subdirectory(ssl)
