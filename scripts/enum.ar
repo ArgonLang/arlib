@@ -1,0 +1,402 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * Provides a set of algorithms to work with enumerables.
+*/
+
+pub let __version = "@PROJECT_VERSION@"
+
+pub func all(enum) {
+    /*
+        Returns true if all elements in enumerable are truthy.
+
+        - Parameter enum: Enumerable object.
+        - Returns: True if all elements are truthy, false otherwise.
+    */
+
+    var cur
+
+    for cur in enum {
+        if !cur {
+            return false
+        }
+    }
+
+    return true
+}
+
+pub func all_by(fn, enum) {
+    /*
+        Returns true if `item |> fn` is truthy for all elements in enumerable.
+
+        - Parameters:
+          - fn: Predicate function.
+          - enum: Enumerable object.
+        - Returns: True if all elements are truthy, false otherwise.
+    */
+
+    var cur
+
+    for cur in enum {
+        if !fn(cur) {
+            return false
+        }
+    }
+
+    return true
+}
+
+pub func any(enum) {
+    /*
+        Returns true if at least one element in enumerable is truthy.
+
+        - Parameter enum: Enumerable object.
+        - Returns: True if at last one element are truthy, false otherwise.
+    */
+
+    var cur
+
+    for cur in enum {
+        if cur {
+            return true
+        }
+    }
+
+    return false
+}
+
+pub func any_by(fn, enum) {
+    /*
+        Returns true if `item |> fn` is truthy for at least one element in enumerable.
+
+        - Parameters:
+          - fn: Predicate function.
+          - enum: Enumerable object.
+        - Returns: True if at least one element are truthy, false otherwise.
+    */
+
+    var cur
+
+    for cur in enum {
+        if fn(cur) {
+            return true
+        }
+    }
+
+    return false
+}
+
+pub func at(enum, index, _default) {
+    /*
+        Finds the element at the given index.
+
+        - Parameters:
+          - enum: Enumerable object.
+          - index: Zero-based index.
+          - _default: Default value if index is out of bounds.
+        - Returns: Item at given index or _default if index is out of bounds.
+    */
+
+    if typeof(enum, List, Tuple) || typeof(enum, String) && enum.kind == @ascii {
+        if index >= len(enum) {
+            return _default
+        }
+
+        return enum[index]
+    }
+
+    var idx = 0
+
+    var cur
+    for cur in enum {
+        if idx == index {
+            return cur
+        }
+
+        idx += 1
+    }
+
+    return _default
+}
+
+pub func chunk_by(fn, enum) {
+    /*
+        Splits enumerable on every element for which `fn` returns a new value.
+
+        - Parameters:
+          - fn: Predicate function.
+          - enum: Enumerable object.
+        - Returns: List of lists.
+    */
+
+    var ret = []
+    var tmp = []
+    var chg = false
+
+    var cur
+    for cur in enum {
+        if fn(cur) {
+            if !chg {
+                ret.append(tmp)
+                tmp = []
+                chg = true
+            }
+
+            tmp.append(cur)
+            continue
+        }
+
+        if chg {
+            ret.append(tmp)
+            tmp = []
+            chg = false
+        }
+
+        tmp.append(cur)
+    }
+
+    if tmp {
+        ret.append(tmp)
+    }
+
+    return ret
+}
+
+pub func count(fn, enum) {
+    /*
+        Returns the count of elements in the enum for which `fn` returns a truthy value.
+
+        - Parameters:
+          - fn: Predicate function.
+          - enum: Enumerable object.
+        - Returns: Number of elements in enumerable.
+    */
+
+    var length = 0
+
+    var cur
+    for cur in enum {
+        if fn(cur) {
+            length += 1
+        }
+    }
+
+    return length
+}
+
+pub func dedup(enum) {
+    /*
+        Enumerates the enumerable, returning a list where all consecutive duplicated elements are collapsed to a single element.
+
+        - Parameters enum: Enumerable object.
+        - Returns: List where all consecutive duplicated elements are collapsed to a single element.
+    */
+
+    var ret = []
+    var ins = false
+    var last
+
+    var cur
+    for cur in enum {
+        if last !== cur && ins {
+            ret.append(last)
+        }
+
+        last = cur
+        ins = true
+    }
+
+    ret.append(last)
+
+    return ret
+}
+
+pub func drop(enum, num) {
+    /*
+        Drops the amount of elements from the enumerable.
+
+        - Parameters:
+          - enum: Enumerable object.
+          - num: Number of items to discard.
+        - Returns: List without `num` amount of elements.
+    */
+
+    var ret = enum
+
+    if !typeof(enum, List) {
+        ret = List(enum)
+    }
+
+    return num >= 0 ? ret[num:] : ret[:num]
+}
+
+pub func each(fn, enum) {
+    /*
+        Invokes the given `fn` for each element in the enumerable.
+
+        - Parameters:
+          - fn: Function.
+          - enum: Enumerable object.
+    */
+
+    var cur
+    for cur in enum {
+        fn(cur)
+    }
+}
+
+pub func fibgen(n1, n2) {
+    var nth
+
+    loop {
+        yield n1
+        nth = n1 + n2
+        n1 = n2
+        n2 = nth
+    }
+}
+
+pub var fib = fibgen(0, 1)
+
+pub func frequencies(enum) {
+    /*
+        Returns a dict with keys as unique elements of enumerable and values as the count of every element.
+
+        - Parameters enum: Enumerable object.
+        - Returns: Dict with keys as unique elements of enumerable and values as the count of every element.
+    */
+
+    var ret = {}
+    var cur
+
+    for cur in enum {
+        ret[cur] = ret.get(cur).unwrap_or(0) + 1
+    }
+
+    return ret
+}
+
+pub func frequencies_by(fn, enum) {
+    /*
+        Returns a dict with keys as unique elements given by `fn` and values as the count of every element.
+
+         - Parameters:
+           - fn: Key function.
+           - enum: Enumerable object.
+        - Returns: Dict with keys as unique elements given by `fn` and values as the count of every element.
+    */
+
+    var ret = {}
+    var tmp
+    var cur
+
+    for cur in enum {
+        tmp = fn(cur)
+        ret[tmp] = ret.get(tmp).unwrap_or(0) + 1
+    }
+
+    return ret
+}
+
+pub func group_by(fn, enum) {
+    /*
+        Splits the enumerable into groups based on `fn`.
+
+        - Parameters:
+          - fn: Key function.
+          - enum: Enumerable object.
+        - Returns: Dict where each key is given by `fn` and each value is a list of elements given the same key.
+    */
+
+    var ret = {}
+    var tmp
+    var cur
+
+    for cur in enum {
+        tmp = fn(cur)
+        ret[tmp] = ret.get(tmp).unwrap_or([]).append(cur)
+    }
+
+    return ret
+}
+
+pub func reject(fn, enum) {
+    /*
+        Returns a list of elements in enumerable excluding those for which the `fn` returns a truthy value.
+
+        - Parameters:
+          - fn: Predicate function.
+          - enum: Enumerable object.
+        - Returns: List of elements excluding those for which the `fn` returns a truthy value.
+    */
+
+    var ret = []
+
+    var cur
+    for cur in enum {
+        if !fn(cur) {
+            ret.append(cur)
+        }
+    }
+
+    return ret
+}
+
+pub func seqgen(base) {
+    loop {
+        yield base++
+    }
+}
+
+pub var seq = seqgen(0)
+
+pub func uniq(enum) {
+    /*
+        Enumerates the enumerable, removing all duplicated elements.
+
+        - Parameters enum: Enumerable object.
+        - Returns: List without duplicated elements.
+    */
+
+    var chk = Set()
+    var ret = []
+
+    var cur
+    for cur in enum {
+        if !chk.contains(cur) {
+            chk.add(cur)
+            ret.append(cur)
+        }
+    }
+
+    return ret
+}
+
+pub func uniq_by(fn, enum) {
+    /*
+        Enumerates the enumerable, by removing the elements for which `fn` returned duplicate elements.
+
+        - Parameters:
+          - fn: Predicate function.
+          - enum: Enumerable object.
+        - Returns: List without duplicated elements.
+    */
+
+    var chk = Set()
+    var ret = []
+    var tmp
+
+    var cur
+    for cur in enum {
+        tmp = fn(cur)
+
+        if !chk.contains(tmp) {
+            chk.add(tmp)
+            ret.append(cur)
+        }
+    }
+
+    return ret
+}

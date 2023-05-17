@@ -15,6 +15,8 @@ In any case, if necessary, it is possible to use a customized version for a give
 
 ## 🪄 Current modules
 
+- Data Types:
+  - enum 
 - File formats:
   - ini 
 - Networking and IC:
