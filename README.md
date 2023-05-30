@@ -16,10 +16,12 @@ In any case, if necessary, it is possible to use a customized version for a give
 ## 🪄 Current modules
 
 - Data Types:
-  - enum 
+  - enum -- Provides a set of algorithms to work with enumerables
 - File formats:
-  - ini 
+  - ini -- INI format parser
+- Internet protocols and related stuff:
+  - url -- URL handling module
 - Networking and IC:
-  - ssl 
+  - ssl -- SSL/TLS wrapper for socket objects
 - Text processing:
-  - regex
+  - regex -- Perl-like regex support
