@@ -127,8 +127,7 @@ struct Section {
         }
 
         if self.nested {
-            var key, value
-            for key, value in self.nested {
+            for var key, value of self.nested {
                 ret[key] = value.to_dict()
             }
         }
@@ -145,7 +144,7 @@ struct Section {
         }
 
         if self.props {
-            for key, value in self.props {
+            for key, value of self.props {
                 if !value {
                     lines.append(b"%s" % key)
                     continue
@@ -156,7 +155,7 @@ struct Section {
         }
 
         if self.nested {
-            for key, value in self.nested {
+            for key, value of self.nested {
                 if !section {
                     lines.append(value.write(key))
                     continue
@@ -192,8 +191,7 @@ pub struct IniParser {
                 return nil
             }
 
-            var sub
-            for sub in subs {
+            for var sub of subs {
                 section = section.get_section(sub)
                 if section == nil {
                     break
@@ -257,8 +255,7 @@ pub struct IniParser {
             var subs = section.split(self.section_separator, -1)
             var first = true
 
-            var cursor
-            for cursor in subs {
+            for var cursor of subs {
                 if !cursor {
                     first = false
                     continue
@@ -303,8 +300,7 @@ pub struct IniParser {
 
             self.line = 0
 
-            var line
-            for line in lgen() {
+            for var line of lgen() {
                 self.line += 1
                 self.parse(line)
             }

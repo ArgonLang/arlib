@@ -16,9 +16,7 @@ pub func all(enum) {
         - Returns: True if all elements are truthy, false otherwise.
     */
 
-    var cur
-
-    for cur in enum {
+    for var cur of enum {
         if !cur {
             return false
         }
@@ -37,9 +35,7 @@ pub func all_by(fn, enum) {
         - Returns: True if all elements are truthy, false otherwise.
     */
 
-    var cur
-
-    for cur in enum {
+    for var cur of enum {
         if !fn(cur) {
             return false
         }
@@ -56,9 +52,7 @@ pub func any(enum) {
         - Returns: True if at last one element are truthy, false otherwise.
     */
 
-    var cur
-
-    for cur in enum {
+    for var cur of enum {
         if cur {
             return true
         }
@@ -77,9 +71,7 @@ pub func any_by(fn, enum) {
         - Returns: True if at least one element are truthy, false otherwise.
     */
 
-    var cur
-
-    for cur in enum {
+    for var cur of enum {
         if fn(cur) {
             return true
         }
@@ -109,8 +101,7 @@ pub func at(enum, index, _default) {
 
     var idx = 0
 
-    var cur
-    for cur in enum {
+    for var cur of enum {
         if idx == index {
             return cur
         }
@@ -135,8 +126,7 @@ pub func chunk_by(fn, enum) {
     var tmp = []
     var chg = false
 
-    var cur
-    for cur in enum {
+    for var cur of enum {
         if fn(cur) {
             if !chg {
                 ret.append(tmp)
@@ -176,8 +166,7 @@ pub func count(fn, enum) {
 
     var length = 0
 
-    var cur
-    for cur in enum {
+    for var cur of enum {
         if fn(cur) {
             length += 1
         }
@@ -198,8 +187,7 @@ pub func dedup(enum) {
     var ins = false
     var last
 
-    var cur
-    for cur in enum {
+    for var cur of enum {
         if last !== cur && ins {
             ret.append(last)
         }
@@ -241,8 +229,7 @@ pub func each(fn, enum) {
           - enum: Enumerable object.
     */
 
-    var cur
-    for cur in enum {
+    for var cur of enum {
         fn(cur)
     }
 }
@@ -269,9 +256,8 @@ pub func frequencies(enum) {
     */
 
     var ret = {}
-    var cur
 
-    for cur in enum {
+    for var cur of enum {
         ret[cur] = ret.get(cur).unwrap_or(0) + 1
     }
 
@@ -290,9 +276,8 @@ pub func frequencies_by(fn, enum) {
 
     var ret = {}
     var tmp
-    var cur
 
-    for cur in enum {
+    for var cur of enum {
         tmp = fn(cur)
         ret[tmp] = ret.get(tmp).unwrap_or(0) + 1
     }
@@ -312,9 +297,8 @@ pub func group_by(fn, enum) {
 
     var ret = {}
     var tmp
-    var cur
 
-    for cur in enum {
+    for var cur of enum {
         tmp = fn(cur)
         ret[tmp] = ret.get(tmp).unwrap_or([]).append(cur)
     }
@@ -334,8 +318,7 @@ pub func reject(fn, enum) {
 
     var ret = []
 
-    var cur
-    for cur in enum {
+    for var cur of enum {
         if !fn(cur) {
             ret.append(cur)
         }
@@ -363,8 +346,7 @@ pub func uniq(enum) {
     var chk = Set()
     var ret = []
 
-    var cur
-    for cur in enum {
+    for var cur of enum {
         if !chk.contains(cur) {
             chk.add(cur)
             ret.append(cur)
@@ -388,8 +370,7 @@ pub func uniq_by(fn, enum) {
     var ret = []
     var tmp
 
-    var cur
-    for cur in enum {
+    for var cur of enum {
         tmp = fn(cur)
 
         if !chk.contains(tmp) {

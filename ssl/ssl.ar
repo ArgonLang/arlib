@@ -21,15 +21,10 @@ if runtime.os == "windows" {
     pub let WINDOWS_CERT_STORES = ["CA", "ROOT"]
 
     pub func load_windows_certs(context) {
-        var cert
-        var encoding
-        var trust
-
         var bundle = Bytes()
 
-        var store
-        for store in WINDOWS_CERT_STORES {
-            for cert, encoding, trust in enumcerts(store) {
+        for var store of WINDOWS_CERT_STORES {
+            for var cert, encoding, trust of enumcerts(store) {
                 if encoding == "x509_asn" && trust || trust.contains(X509v3Purpose.SERVER_AUTH) {
                     bundle += cert
                 }

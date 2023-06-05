@@ -124,14 +124,14 @@ pub func parse(url, &kwargs) {
     scheme = scheme.trim(chars=C0_CONTROL_OR_SPACE)
 
     var cursor
-    for cursor in UNSAFE_URL_BYTES {
+    for cursor of UNSAFE_URL_BYTES {
         url = url.replace(cursor, b"", -1)
         scheme = scheme.replace(cursor, b"", -1)
     }
 
     var idx = url.find(b":")
     if idx > 0 {
-        for cursor in url[:idx] {
+        for cursor of url[:idx] {
             if cursor not in SCHEME_VALID_BYTES {
                 cursor = @invalid
                 break
@@ -146,7 +146,7 @@ pub func parse(url, &kwargs) {
     if url[:2] == b"//" {
         var nl_length = len(url) - 2
 
-        for cursor in b"/?#" {
+        for cursor of b"/?#" {
             idx = url.findbyte(2, cursor)
             if idx >= 0 && idx < nl_length {
                 nl_length = idx
@@ -252,8 +252,7 @@ pub func quote(str, &kwargs) {
 
     var q = quoter(kwargs?.contains("safe") ? kwargs["safe"] : b"/")
 
-    var cursor
-    for cursor in str {
+    for var cursor of str {
         output.append(q(cursor))
     }
 
