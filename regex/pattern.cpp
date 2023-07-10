@@ -4,9 +4,10 @@
 
 #include <argon/vm/datatype/arstring.h>
 #include <argon/vm/datatype/boolean.h>
+#include <argon/vm/datatype/bytes.h>
 #include <argon/vm/datatype/dict.h>
 #include <argon/vm/datatype/integer.h>
-#include <argon/vm/datatype/bytes.h>
+#include <argon/vm/datatype/nil.h>
 
 #include <argon/vm/runtime.cpp>
 
@@ -84,6 +85,47 @@ ARGON_METHOD(pattern_findall, findall,
                                (Pattern *) _self,
                                0,
                                store);
+
+    BufferRelease(&buffer);
+
+    return ret;
+}
+
+ARGON_METHOD(pattern_match, match,
+             "Check if the pattern matches the whole 'subject'.\n"
+             "\n"
+             "- Parameter subject: The subject which you want to search for the pattern.\n"
+             "- KParameters:\n"
+             "  - store: Boolean indicating whether to extract and store the substring inside the match object.\n"
+             "- Returns: Match object if the subject matches the pattern, nil otherwise\n",
+             "sx: subject", false, true) {
+    ArBuffer buffer{};
+    ArObject *ret;
+
+    bool store;
+
+    if (!BufferGet(args[0], &buffer, BufferFlags::READ))
+        return nullptr;
+
+    store = DictLookupIsTrue((Dict *) kwargs, "store", true);
+
+    ret = (ArObject *) Find(buffer.buffer,
+                            buffer.length,
+                            AR_GET_TYPE(args[0]),
+                            (Pattern *) _self,
+                            0,
+                            store);
+
+    if (ret != nullptr) {
+        const auto match = (Match *) ret;
+        if (match->start != 0 || match->end != buffer.length) {
+            BufferRelease(&buffer);
+
+            Release(ret);
+
+            return (ArObject *) IncRef(Nil);
+        }
+    }
 
     BufferRelease(&buffer);
 
@@ -298,6 +340,7 @@ const FunctionDef pattern_methods[] = {
 
         pattern_find,
         pattern_findall,
+        pattern_match,
         pattern_replace,
         pattern_split,
         ARGON_METHOD_SENTINEL
