@@ -443,6 +443,8 @@ ARGON_METHOD_INHERITED(sslsocket_read, read) {
     if ((self->user_buffer.buffer = (unsigned char *) argon::vm::memory::Alloc(bufsize)) == nullptr)
         goto ERROR;
 
+    self->user_buffer.length = bufsize;
+
     ERR_clear_error();
 
     if (SSL_read_ex(self->ssl, self->user_buffer.buffer, self->user_buffer.length, &b_read) > 0) {
