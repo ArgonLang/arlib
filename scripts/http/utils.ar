@@ -1,0 +1,60 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * HTTP library
+*/
+
+from "error" import ValueError
+
+import "regex" as re
+
+# Errors template
+pub let HTTPError = Error(@HTTPError)
+
+# Prevent http header injection.
+pub let METHOD_DISALLOWED_CHAR = re.Pattern(r#"[\x00-\x1f]"#)
+
+# Prevent CVE-2019-9740.
+pub let PATH_DISALLOWED_CHAR = re.Pattern(r#"[\x00-\x20\x7f]"#)
+
+pub let METHOD_REQ_BODY = {"PATCH", "POST", "PUT"}
+
+pub let MAXLINELEN = 2056
+pub let MAXLINEOVF = MAXLINELEN + 1
+
+pub let HTTP_PORT = 80
+pub let HTTPS_PORT = 443
+
+pub func split_host_port(host, port, default_port) {
+    var colon = host.rfind(":")
+    var cpar = host.rfind("]")
+
+    if !port {
+        port = default_port
+
+        if colon > cpar {
+            port = Int::parse(host[colon + 1:], 10)
+
+            if port == 0 {
+                if host[colon + 1:] != "" {
+                    panic ValueError("non-numeric port: %s" % host[colon + 1])
+                }
+
+                port = default_port
+            }
+        }
+    }
+
+    if colon > -1 {
+        host = host[:colon]
+    }
+
+    # Check IPv6
+    if host[0] == "[" && host[-1] == "]" {
+        host = host[1:-1]
+    }
+
+    return host, port
+}

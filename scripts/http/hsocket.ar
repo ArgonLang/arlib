@@ -1,0 +1,151 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * HTTP library
+*/
+
+from "io" import Reader, Writer
+
+import "socket"
+
+let HTTPConnectorError = Error(@HTTPSocket)
+
+pub trait HTTPSocket : Reader, Writer {
+    pub func close(self)
+
+    pub func connect(self, host, port)
+
+    pub func isconnected(self)
+
+    pub func unwrap(self)
+
+    pub func wrap(self, socket)
+}
+
+pub struct HTTPConnector impl HTTPSocket {
+    var sock
+
+    pub func close(self) {
+        self.sock?.close()
+
+        self.sock = nil
+    }
+
+    pub func connect(self, host, port) {
+        var sock = socket.Socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+        var hip = socket.gethostbyname(host)
+
+        sock.connect((hip, port))
+        
+        self.sock = sock
+    }
+
+    pub func isconnected(self) {
+        return self.sock != nil
+    }
+
+    pub func read(self, size) {
+        if self.sock == nil {
+            panic HTTPConnectorError("HTTPConnector not connected")
+        }
+
+        return self.sock.read(size)
+    }
+
+    pub func readinto(self, buffer, offset) {
+        if self.sock == nil {
+            panic HTTPConnectorError("HTTPConnector not connected")
+        }
+
+        return self.sock.readinto(buffer, offset)
+    }
+
+    pub func unwrap(self) {
+        var sock = self.sock
+        
+        self.sock = nil
+
+        return sock
+    }
+
+    pub func wrap(self, socket) {
+        self.sock = socket
+    }
+
+    pub func write(self, data) {
+        if self.sock == nil {
+            panic HTTPConnectorError("HTTPConnector not connected")
+        }
+
+        return self.sock.write(data)
+    }
+}
+
+# Check for SSL/TLS support
+var ssl = require("ssl")
+
+if ssl {
+    ssl = ssl.ok()
+
+    pub struct HTTPSConnector impl HTTPSocket {
+        var ssl_context = ssl.DEFAULT_CONTEXT
+        var sock
+
+        pub func close(self) {
+            self.sock?.shutdown()
+
+            self.sock = nil
+        }
+
+        pub func connect(self, host, port) {
+            var sock = socket.Socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+            var hip = socket.gethostbyname(host)
+
+            sock.connect((hip, port))
+
+            sock = self.ssl_context.wrap(sock, false)
+
+            sock.handshake()
+
+            self.sock = sock
+        }
+
+        pub func isconnected(self) {
+            return self.sock != nil
+        }
+
+        pub func read(self, size) {
+            if self.sock == nil {
+                panic HTTPConnectorError("HTTPSConnector not connected")
+            }
+
+            return self.sock.read(size)
+        }
+
+        pub func readinto(self, buffer, offset) {
+            if self.sock == nil {
+                panic HTTPConnectorError("HTTPSConnector not connected")
+            }
+
+            return self.sock.readinto(buffer, offset)
+        }
+
+        pub func wrap(self, socket) {
+            var sock = self.ssl_context.wrap(socket, false)
+
+            sock.handshake()
+
+            self.sock = sock
+        }
+
+        pub func write(self, data) {
+            if self.sock == nil {
+                panic HTTPConnectorError("HTTPSConnector not connected")
+            }
+
+            return self.sock.write(data)
+        }
+    }
+}

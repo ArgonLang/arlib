@@ -1,0 +1,121 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * HTTP library
+*/
+
+from "error" import TypeError
+from "http/utils" import HTTPError, MAXLINELEN, MAXLINEOVF
+from "regex" import Pattern
+
+pub let VALID_NAME = Pattern(r#"[^:\s][^:\r\n]*"#)
+pub let INVALID_VALUE = Pattern(r#"\n(?![ \t])|\r(?![ \t\n])"#)
+
+pub struct HeadersManager {
+    var headers
+
+    pub func HeadersManager(headers) {
+        var hm = HeadersManager@({})
+
+        if headers != nil {
+            for var key, value of headers {
+                hm.put(key, value)
+            }
+        }
+
+        return hm
+    }
+
+    pub func contains(self, key) {
+        return key in self.headers
+    }
+
+    pub func get(self, key, _default) {
+        return key in self.headers ? self.headers[key] : _default
+    }
+
+    pub func merge_raw(self, headers) {
+        var ret = HeadersManager@(Dict(self.headers))
+
+        for var key, value of headers {
+            ret.put(key, value)
+        }
+
+        return ret
+    }
+
+    pub func parse(self, stream) {
+        loop {
+            var line = stream.readline(MAXLINEOVF)
+            if len(line) > MAXLINELEN {
+                panic HTTPError("line too long", length=len(line), max=MAXLINELEN)
+            }
+
+            if !line || line == b"\n" || line == b"\r\n" {
+                break
+            }
+
+            line = line.split(b":", 1)
+            if len(line) < 2 {
+                panic HTTPError("invalid header", value=line)
+            }
+
+            #                                              cleanup header value
+            self.put(line[0].lower().tostr(), line[1].trim(chars=b"\n\r\x20"))
+        }
+
+        return self
+    }
+
+    pub func put(self, key, value) {
+        if typeof(key, Bytes) {
+            key = key.tostr()
+        } elif !typeof(key, String) {
+            panic TypeError("key must be a String")
+        }
+
+        if !typeof(value, Bytes) {
+            value = Bytes(value)
+        }
+
+        # Check key/value
+
+        if !VALID_NAME.match(key) {
+            panic HTTPError("invalid header name", name=key)
+        }
+
+        if INVALID_VALUE.match(value) {
+            panic HTTPError("invalid header value", value=value)
+        }
+
+        self.headers[key] = value
+
+        return self
+    }
+
+    pub func raw(self) {
+        return Dict(self.headers)
+    }
+
+    pub func to_lines(self) {
+        var ret = []
+
+        for var key, value of self.headers {
+            ret.append(b"%s: %s" % (key, value))
+        }
+
+        return ret
+    }
+
+    pub func to_bytes(self) {
+        var out = b""
+
+        for var key, value of self.headers {
+            out += b"%s: %s\r\n" % (key, value)
+        }
+
+        return out
+    }
+}
