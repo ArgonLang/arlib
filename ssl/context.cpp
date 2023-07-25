@@ -718,7 +718,7 @@ ARGON_METHOD(sslcontext_wrap, wrap,
              "- KWParameters:\n"
              "  - hostname: String specifies the hostname of the service which we are connecting to.\n"
              "- Returns: New SSLSocket instance.\n",
-             ": socket, b: server_side", false, false) {
+             ": socket, b: server_side", false, true) {
     String *hostname = nullptr;
     SSLSocket *sock;
 
