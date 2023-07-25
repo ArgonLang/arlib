@@ -861,6 +861,8 @@ SSLSocket *arlib::ssl::SSLSocketNew(SSLContext *context, socket::Socket *socket,
 
     SSL_clear_mode(ssl, SSL_MODE_AUTO_RETRY);
 
+    SSL_set_read_ahead(ssl, 1);
+
     if ((sock = MakeObject<SSLSocket>(&SSLSocketType)) == nullptr) {
         SSL_free(ssl);
 
