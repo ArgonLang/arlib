@@ -97,7 +97,7 @@ pub func compose(components) {
     return scheme + netloc + path + params + (query ? "?%s" % query : "") + (fragments ? "#%s" % fragments : "")
 }
 
-pub func parse(url, &kwargs) {
+pub func parse(url, scheme="", fragments=true) {
     /*
         Parses a URL and builds a dict containing the different components of the URL.
 
@@ -111,12 +111,10 @@ pub func parse(url, &kwargs) {
         - Returns: Dict containing the different components of the URL.
     */
 
-    var scheme = kwargs?.contains("scheme") ? kwargs["scheme"] : ""
-    var allow_fragments = kwargs?.contains("fragments") ? kwargs["fragments"] : true
     var netloc = b""
     var params =  b""
     var query = b""
-    var fragments = b""
+    var frags = b""
 
     url, scheme = coerce_args(url, scheme)
 
@@ -157,10 +155,10 @@ pub func parse(url, &kwargs) {
         url = url[nl_length + 2:]
     }
 
-    if allow_fragments && b"#" in url {
+    if fragments && b"#" in url {
         url = url.split(b"#", 1)
         if len(url) > 1 {
-            url, fragments = url
+            url, frags = url
         } else {
             url = url[0]
         }
@@ -187,7 +185,7 @@ pub func parse(url, &kwargs) {
         "path": url.tostr(),
         "params": params.tostr(),
         "query": query.tostr(),
-        "fragments": fragments.tostr(),
+        "fragments": frags.tostr(),
         "userinfo": parse_uinfo(netloc),
         "hostinfo": parse_hinfo(netloc)
     }
@@ -232,7 +230,7 @@ func parse_uinfo(netloc) {
     }
 }
 
-pub func quote(str, &kwargs) {
+pub func quote(str, safe=b"/") {
     /*
         Replace special characters in string using the %XX escape.
 
@@ -250,7 +248,7 @@ pub func quote(str, &kwargs) {
         panic TypeError("expected Bytes or String")
     }
 
-    var q = quoter(kwargs?.contains("safe") ? kwargs["safe"] : b"/")
+    var q = quoter(safe)
 
     for var cursor of str {
         output.append(q(cursor))
@@ -259,7 +257,7 @@ pub func quote(str, &kwargs) {
     return "".join(output)
 }
 
-pub func quote_plus(str, &kwargs) {
+pub func quote_plus(str, safe=b" ") {
     /*
         Like quote(), but also replace spaces with plus signs.
 
@@ -268,18 +266,6 @@ pub func quote_plus(str, &kwargs) {
           - safe: Specifies additional ASCII characters that should not be quoted (default: '/').
         - Returns: Quoted string.
     */
-
-    var safe = b" "
-
-    if kwargs?.contains("safe") {
-        var _safe = kwargs["safe"]
-
-        if typeof(_safe, String) {
-            safe = Bytes(_safe) + safe
-        } elif typeof(_safe, Bytes) {
-            safe = _safe + safe
-        }
-    }
 
     return quote(str, safe=safe).replace(" ", "+", -1)
 }

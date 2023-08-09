@@ -39,12 +39,21 @@ if runtime.os == "windows" {
 
 DEFAULT_CONTEXT.load_paths_default()
 
-pub func connect(address, do_handshake) {
+pub func connect(address, handshake=true) {
+    /*
+        Make a secure TCP connection to an address.
+
+        - Parameter address: IP/URL.
+        - KWParameters:
+          - handshake: Perform handshake on connection established (default: true).
+        - Returns: SSLSocket
+    */
+
     var sock = socket.dial("tcp", address)
 
     sock = DEFAULT_CONTEXT.wrap(sock, false)
 
-    do_handshake ? sock.handshake()
+    handshake ? sock.handshake()
 
     return sock
 }
