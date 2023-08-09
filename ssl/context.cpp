@@ -722,6 +722,13 @@ ARGON_METHOD(sslcontext_wrap, wrap,
     String *hostname = nullptr;
     SSLSocket *sock;
 
+    if (!AR_TYPEOF(args[0], argon::vm::io::socket::type_socket_)) {
+        ErrorFormat(kTypeError[0], kTypeError[2], argon::vm::io::socket::type_socket_->qname,
+                    AR_TYPE_QNAME(args[0]));
+
+        return nullptr;
+    }
+
     if (kwargs != nullptr) {
         hostname = (String *) DictLookup((Dict *) kwargs, (const char *) "hostname");
         if (hostname == nullptr && argon::vm::IsPanicking())
