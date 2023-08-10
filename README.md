@@ -20,6 +20,7 @@ In any case, if necessary, it is possible to use a customized version for a give
 - File formats:
   - ini -- INI format parser
 - Internet protocols and related stuff:
+  - http -- HTTP modules 
   - url -- URL handling module
 - Networking and IC:
   - ssl -- SSL/TLS wrapper for socket objects

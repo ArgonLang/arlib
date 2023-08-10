@@ -105,7 +105,7 @@ if ssl {
 
             sock.connect((hip, port))
 
-            sock = self.ssl_context.wrap(sock, false)
+            sock = self.ssl_context.wrap(sock, false, hostname=host)
 
             sock.handshake()
 
@@ -132,12 +132,18 @@ if ssl {
             return self.sock.readinto(buffer, offset)
         }
 
-        pub func wrap(self, socket) {
-            var sock = self.ssl_context.wrap(socket, false)
+        pub func wrap(self, socket, hostname=) {
+            if !typeof(socket, ssl.SSLSocket) {
+                if hostname {
+                    socket = self.ssl_context.wrap(socket, false, hostname=hostname)
+                } else {
+                    socket = self.ssl_context.wrap(socket, false)
+                }
 
-            sock.handshake()
+                socket.handshake()
+            }
 
-            self.sock = sock
+            self.sock = socket
         }
 
         pub func write(self, data) {

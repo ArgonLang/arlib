@@ -1,0 +1,49 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * HTTP library
+*/
+
+from "url" import parse
+
+import "http/client"
+
+pub let __version = "@PROJECT_VERSION@"
+
+pub func delete(url, &kwargs) {
+    return request(b"DELETE", url, nil, &kwargs)
+}
+
+pub func get(url, &kwargs) {
+    return request(b"GET", url, nil, &kwargs)
+}
+
+pub func head(url, &kwargs) {
+    return request(b"HEAD", url, nil, &kwargs)
+}
+
+pub func patch(url, data, &kwargs) {
+    return request(b"PATCH", url, data, &kwargs)   
+}
+
+pub func post(url, data, &kwargs) {
+    return request(b"POST", url, data, &kwargs)
+}
+
+pub func put(url, data, &kwargs) {
+    return request(b"PUT", url, data, &kwargs)
+}
+
+pub func request(method, url, body, &kwargs) {
+    var usplit = parse(url)
+
+    var c = client.Client(url)
+
+    return c.request(method, usplit["path"], body)
+}
+
+pub func tunnel(proxy, dest, &kwargs) {
+    return client.Client(proxy).open_tunnel(dest, &kwargs)
+}

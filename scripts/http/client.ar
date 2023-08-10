@@ -8,10 +8,11 @@
 
 from "error" import ValueError
 from "http/hdrmng" import HeadersManager
-from "http/hsocket" import HTTPConnector, HTTPSConnector
 from "io" import Reader
+from "io/bufio" import BufferedReader
+from "url" import parse
 
-import "io/bufio"
+import "http/hsocket"
 import "http/utils"
 
 pub struct Client {
@@ -30,42 +31,38 @@ pub struct Client {
 
     pub func Client(url) {
         var default_port = utils.HTTP_PORT
-        var conn = HTTPConnector
-        
+        var conn = hsocket.HTTPConnector
+
         var https = false
 
-        var scheme = url.find("://")
-        if scheme > 0 {
-            var tmp = url[0:scheme]
-            
-            url = url[scheme+3:]
+        url = parse(url)
 
-            scheme = tmp
-        }
-
-        if scheme == "https" {
+        if url["scheme"] == "https" {
             default_port = utils.HTTPS_PORT
-            conn = HTTPSConnector
+            conn = hsocket.HTTPSConnector
 
             https = true
         }
 
-        var hp = utils.split_host_port(url, nil, default_port)
+        var hinfo = url["hostinfo"]
+        var port = hinfo["port"]
+
+        port = port == nil ? default_port : Int::parse(port, 10)
 
         return Client@(
-            hp,
+            (hinfo["host"], port),
             (11, b"HTTP/1.1"),
             HeadersManager({"user-agent": "Argon-client"}),
             conn@()
         )
     }
 
-    pub func attach(host, port, socket, secure) {
-        var conn = secure ? HTTPSConnector : HTTPConnector
+    pub func attach(socket, host, port, secure) {
+        var conn = secure ? hsocket.HTTPSConnector : hsocket.HTTPConnector
 
         conn = conn@()
 
-        conn.wrap(socket)
+        conn.wrap(socket, hostname=host)
 
         return Client@(
             (host, port),
@@ -75,9 +72,9 @@ pub struct Client {
         )
     }
 
-    func close(self) {
+    func close_conn(self) {
         self.conn.close()
-        self.response = nil
+        # self.response = nil
 
         self.status = @IDLE
     }
@@ -118,7 +115,7 @@ pub struct Client {
         }
 
         var lines = []
-        
+
         lines.append(b"%s %s %s" % (method, path, self.version[1]))
 
         if self.version[0] != 11 {
@@ -160,22 +157,22 @@ pub struct Client {
         if te != nil {
             return te.lower() == b"chunked"
         }
-        
+
         var clen = self.get_content_length(method, body)
         if clen != nil {
             headers.put("content-length", String(clen))
             return false
         }
-        
+
         if body != nil {
             headers.put("transfer-encoding", "chunked")
             return true
         }
-        
+
         return false
     }
 
-    pub func request(self, method, path, body, &kwargs) {
+    pub func request(self, method, path, body, headers=) {
         if self.status != @IDLE {
             panic utils.HTTPError("another request is in progress")
         }
@@ -188,12 +185,10 @@ pub struct Client {
             panic utils.HTTPError("CONNECT is an invalid verb for request method, use open_tunnel instead")
         }
 
-        var headers = kwargs?.contains("headers") ? kwargs["headers"] : nil
-
         headers = headers != nil ? self.headers.merge_raw(headers) : self.headers
 
         var lines = self.prepare_request(method, path, headers)
-        
+
         self.process_length(method, headers, body)
 
         var ok = trap self.send(headers, lines, body)
@@ -203,11 +198,21 @@ pub struct Client {
             panic ok.err()
         }
 
-        self.response = HTTPResponse(self.conn, method)
+        var response = trap HTTPResponse(self.conn, method)
 
         self.status = @IDLE
 
-        return self.response
+        if !response {
+            panic response.err()
+        }
+
+        response = response.ok()
+
+        response.will_close ? self.close_conn()
+
+        self.response = response
+
+        return response
     }
 
     func send(self, headers, lines, body) {
@@ -270,20 +275,14 @@ pub struct Client {
         self.conn.write(data)
     }
 
-    pub func open_tunnel(self, url, &kwargs) {
+    pub func open_tunnel(self, url, headers={}, secure=false) {
         var host, port = utils.split_host_port(url, nil, 80)
-        
+
         if "://" in host {
             panic ValueError("invalid host name", host=self.dest[0])
         }
 
-        var secure = port == utils.HTTPS_PORT
-
-        if kwargs?.contains("secure") {
-            secure = kwargs["secure"]
-        }
-
-        var headers = HeadersManager(kwargs?.contains("headers") ? kwargs["headers"] : {})
+        headers = HeadersManager(headers)
 
         !headers.contains("host") ? headers.put("host", b"%s:%d" % (host, port))
 
@@ -298,15 +297,15 @@ pub struct Client {
         var response = HTTPResponse(self.conn, "CONNECT")
         if response.status != 200 {
             self.close()
-            
+
             panic utils.HTTPError("tunnel connection failed", status=response.status, reason=response.reason)
         }
 
-        return host, port, self.conn.unwrap(), secure
+        return self.conn.unwrap(), host, port, secure
     }
 }
 
-trait Response : Reader {
+trait Response {
     func check_close(self, headers, version) {
         var conn = headers.get("connection", nil)?.lower()
         var will_close = false
@@ -332,7 +331,7 @@ trait Response : Reader {
         var length = headers.get("content-length", nil)
         var chunked = headers.get("transfer-encoding", nil) == b"chunked"
         var ret = nil
-        
+
         if length && !chunked {
             length = Int::parse(length, 10)
             if length >= 0 {
@@ -355,11 +354,11 @@ trait Response : Reader {
     func get_chunk(self, stream, last_size) {
         if !last_size {
             last_size == 0 ? self.read_exact(stream, 2) # Remove CRLF from stream
-            
+
             var chunksz = self.read_chunk_size(stream)
             if chunksz == 0 {
                 self.trim_trailer(stream)
-                
+
                 chunksz = @eof
             }
 
@@ -385,7 +384,7 @@ trait Response : Reader {
             }
 
             var line = self.read_exact(stream, chunksz)
-            
+
             values.append(line)
 
             last_chunk -= chunksz
@@ -397,12 +396,52 @@ trait Response : Reader {
                     break
                 }
             }
-            
+
             last_chunk = self.get_chunk(stream, last_chunk)
             chunksz = last_chunk
         }
 
         return b"".join(values), last_chunk
+    }
+
+    func read_chunk_into(self, stream, buffer, offset, last_chunk) {
+        var size = len(buffer)
+        var total = 0
+
+        if offset >= size {
+            return 0, last_chunk
+        } else {
+            # offset < size
+            size -= offset
+        }
+
+        last_chunk = self.get_chunk(stream, last_chunk)
+
+        var wbuff
+        var chunksz = last_chunk
+
+        loop size > 0 && chunksz != nil && chunksz != @eof {
+            if size >= chunksz {
+                wbuff = buffer[offset:offset + chunksz]
+            } else{
+                wbuff = buffer[offset:offset + size]
+            }
+
+            var rbytes = stream.readinto(wbuff, 0)
+            if rbytes < len(wbuff) {
+                panic utils.HTTPError("incomplete read")
+            }
+
+            last_chunk -= rbytes
+            size -= rbytes
+            offset += rbytes
+            total += rbytes
+
+            last_chunk = self.get_chunk(stream, last_chunk)
+            chunksz = last_chunk
+        }
+
+        return total, last_chunk
     }
 
     func read_chunk_size(self, stream) {
@@ -426,7 +465,7 @@ trait Response : Reader {
 
     func read_exact(self, stream, size) {
         var data = stream.read(size)
-        
+
         if len(data) < size {
             panic utils.HTTPError("incomplete read")
         }
@@ -439,7 +478,7 @@ trait Response : Reader {
 
         loop line {
             line = stream.readline(utils.MAXLINEOVF)
-        
+
             if len(line) > utils.MAXLINELEN {
                 panic utils.HTTPError("line too long to retrieve the trailer line")
             }
@@ -454,7 +493,7 @@ trait Response : Reader {
 trait ServerResponse : Response {
     func parse_status(self, stream) {
         var line = stream.readline(utils.MAXLINEOVF)
-        
+
         if !line {
             panic utils.HTTPError("remote-end closed connection without response")
         }
@@ -488,7 +527,7 @@ trait ServerResponse : Response {
     }
 }
 
-struct HTTPResponse impl ServerResponse {
+struct HTTPResponse impl Reader, ServerResponse {
     var conn
     var stream
 
@@ -502,10 +541,10 @@ struct HTTPResponse impl ServerResponse {
     var headers
     var length
     var method
-    var will_close
+    pub var will_close
 
     pub func HTTPResponse(conn, method) {
-        var response = HTTPResponse@(conn, bufio.BufferedReader(conn, bufio.DEFAULT_BUFSIZE))
+        var response = HTTPResponse@(conn, BufferedReader(conn))
 
         return response.process(method)
     }
@@ -573,7 +612,7 @@ struct HTTPResponse impl ServerResponse {
     pub func read(self, size) {
         var buf
 
-        if size == 0 || self.method == "HEAD" {
+        if self.length == 0 || size == 0 || self.method == "HEAD" {
             return b""
         }
 
@@ -596,8 +635,8 @@ struct HTTPResponse impl ServerResponse {
 
             if !buf && size > 0 {
                 panic utils.HTTPError("incomplete read")
-            } 
-            
+            }
+
             if self.length != nil {
                 self.length -= len(buf)
                 if self.length == 0 {
@@ -618,5 +657,55 @@ struct HTTPResponse impl ServerResponse {
         self.close_conn()
 
         return buf
+    }
+
+    pub func readinto(self, buffer, offset) {
+        var size = len(buffer)
+        var rbytes
+
+        if self.method == "HEAD" {
+            return 0
+        }
+
+        if self.chunked {
+            rbytes, self.chunksz = self.read_chunk_into(self.stream, buffer, offset, self.chunksz)
+
+            if self.chunksz == nil {
+                self.close_conn()
+            }
+
+            return rbytes
+        }
+
+        if offset <= size {
+            size -= offset
+        }
+
+        if self.length == 0 || size == 0 {
+            return 0
+        }
+
+        if self.length != nil && size > self.length {
+            # Reduces the buffer size to avoid waiting for a read of non-existent data
+
+            buffer = buffer[offset:offset + self.length]
+            size = len(buffer)
+            offset = 0
+        }
+
+        rbytes = self.stream.readinto(buffer, offset)
+
+        if rbytes == 0 && size > 0 {
+            panic utils.HTTPError("incomplete read")
+        }
+
+        if self.length != nil {
+            self.length -= rbytes
+            if self.length == 0 {
+                self.close_conn()
+            }
+        }
+
+        return rbytes
     }
 }
