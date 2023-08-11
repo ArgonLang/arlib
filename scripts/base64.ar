@@ -1,0 +1,309 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * Base16, Base32, Base64 data encodings (RFC 4648).
+*/
+
+from "error" import ValueError
+
+pub let __version = "@PROJECT_VERSION@"
+
+pub let BASE16_TABLE = b"0123456789ABCDEF"
+pub let BASE32_TABLE = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567="
+pub let BASE64_TABLE = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
+pub let BASE64_TABLE_URLSAFE = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+
+pub func b16encoder(table) {
+    return (data) => {
+        /*
+            Encode the bytes-like object data using Base16 and return a frozen bytes object.
+
+            - Parameter data: bytes-like object to encode.
+            - Returns: Frozen bytes object.
+        */
+
+        var output = Bytes(len(data) * 2)
+        var index = 0
+        
+        for var byte of data {
+            output[index++] = table[(byte >> 4) & 0x0F]
+            output[index++] = table[byte & 0x0F]
+        }
+
+        return output.freeze()
+    }
+}
+
+pub func b16decoder(table) {
+    var rtable
+
+    return (data) => {
+        /*
+            Decode the Base16 encoded bytes-like object.
+
+            - Parameter data: bytes-like object to decode.
+            - Returns: Frozen bytes object.
+        */
+
+        var output = Bytes(len(data) / 2)
+        var index = 0
+
+        if rtable == nil {
+            rtable = reverse_table(table)
+        }
+
+        var dlength = len(data)
+
+        for var i = 0; i < dlength; i += 2 {
+            output[index++] = rtable[data[i]] << 4 | rtable[data[i + 1]]
+        }
+
+        return output.freeze()
+    }
+}
+
+pub func b32encoder(table) {
+    return (data) => {
+        /*
+            Encode the bytes-like object data using Base32 and return a frozen bytes object.
+
+            - Parameter data: bytes-like object to encode.
+            - Returns: Frozen bytes object.
+        */
+
+        var output = data 
+                    |> compute_len32 
+                    |> Bytes
+        
+        var dlength = len(data)
+        var index = 0
+
+        for var i = 0; i < dlength; i += 5 {
+            var length = dlength - i < 5 ? dlength - i : 5
+
+            for var block = 0; block < 8; block ++ {
+                var octect = (block * 5) / 8
+                var offset = ((8 - 5) - (block * 5) % 8)
+            
+                if octect >= length {
+                    return padding(output, index, table[-1], 8 - block).freeze()
+                }
+
+                var value = rshift(data[i + octect], offset)
+
+                if offset < 0 && octect < length - 1 {
+                    value = value | data[i + octect + 1] >> 8 + offset
+                }
+
+                output[index++] = table[value & 0x1F]
+            }
+        }
+
+        return output.freeze()
+    }
+}
+
+pub func b32decoder(table) {
+    var rtable
+
+    return (data) => {
+        /*
+            Decode the Base32 encoded bytes-like object.
+
+            - Parameter data: bytes-like object to decode.
+            - Returns: Frozen bytes object.
+        */
+
+        var output = Bytes(compute_dlen(table, data, 5))
+        var index = 0
+
+        if rtable == nil {
+            rtable = reverse_table(table)
+        }
+
+        var dlength = len(data)
+        
+        for var i = 0; i < dlength; i += 8 {    
+            for var block = 0; block < 8; block++ {
+                var octect = (block * 5) / 8
+                var offset = ((8 - 5) - (block * 5) % 8)
+
+                if data[i + block] == table[-1] {
+                    return output.freeze()
+                }
+
+                var value = rtable[data[i + block]]
+
+                output[index + octect] = output[index + octect] | rshift(value, -offset)
+  
+                if offset < 0 && (index + octect + 1) < len(output) {
+                    output[index + octect + 1] = rshift(value, -(8 + offset)) & 0x7F
+                }
+            }
+
+            index += 5
+        }
+
+        return result.freeze()
+    }
+}
+
+pub func b64encoder(table) {
+    return (data) => {
+        /*
+            Encode the bytes-like object data using Base64 and return a frozen bytes object.
+
+            - Parameter data: bytes-like object to encode.
+            - Returns: Frozen bytes object.
+        */
+
+        var output = Bytes(compute_len64(data, table))
+        var index = 0
+
+        var dlength = len(data)
+
+        for var i = 0; i < dlength; i += 3 {
+            var length = dlength - i < 3 ? dlength - i : 3
+
+            for var block = 0; block < 4; block++ {
+                var octect = (block * 6) / 8
+                var offset = ((8 - 6) - (block * 6) % 8)
+
+                if octect >= length {
+                    return len(table) < 65 ? output.freeze() : padding(output, index, table[-1], 4 - block)
+                }
+
+                var value = rshift(data[i + octect], offset)
+
+                if offset < 0 && octect < length - 1 {
+                    value = value | ((data[i + octect + 1]) >> 8 + offset)
+                }
+
+                output[index++] = table[value & 0x3F]
+            }
+        }
+
+        return output.freeze()
+    }
+}
+
+pub func b64decoder(table) {
+    var rtable
+
+    return (data) => {
+        /*
+            Decode the Base64 encoded bytes-like object.
+
+            - Parameter data: bytes-like object to decode.
+            - Returns: Frozen bytes object.
+        */
+
+        var dlength = len(data)
+        var length = compute_dlen(table, data, 6)
+        var output = Bytes(length)
+        var index = 0
+
+        if rtable == nil {
+            rtable = reverse_table(table)
+        }
+
+        for var i = 0; i < dlength; i += 4 {    
+            for var block = 0; block < 4; block++ {
+                var octect = (block * 6) / 8
+                var offset = ((8 - 6) - (block * 6) % 8)
+                var val = 0
+
+                if index + octect >= length {
+                    return output.freeze()
+                }
+
+                var value = rtable[data[i + block]]
+
+                output[index + octect] = output[index + octect] | rshift(value, -offset)
+  
+                if offset < 0 && (index + octect + 1) < length {
+                    output[index + octect + 1] = rshift(value, -(8 + offset)) & 0xFF
+                }
+            }
+
+            index += 3
+        }
+
+        return output.freeze()
+    }
+}
+
+func compute_dlen(table, data, block_length) {
+    var pad = 0
+
+    for var i = len(data) - 1; i > 0; i-- {
+        if data[i] != table[-1] {
+            break
+        }
+
+        pad++
+    }
+    
+    return ((len(data) - pad) * block_length) / 8
+}
+
+func compute_len32(data) {
+    var length = len(data)
+
+    var length_nopad = (length * 8 + 4) / 5
+    var length_pad = length_nopad + (8 - length_nopad) % 8
+
+    return length_pad
+}
+
+func compute_len64(data, table) {
+    var length = len(data)
+    var table_len = len(table)
+
+    if table_len == 65 {
+        return (((length * 4) / 3) + 3) & ~3 # length with padding
+    }
+
+    return (length * 8 + 6 - 1) / 6 # length without padding
+}
+
+func padding(buffer, index, symbol, times) {
+    for var i = 0; i < times; i++ {
+        buffer[index + i] = symbol
+    }
+
+    return buffer
+}
+
+pub func reverse_table(table) {
+    var rtable = Bytes(255)
+    var index = 0
+
+    for var byte of table {
+        if rtable[byte] != 0 || (index > 0 && byte == table[0]) {
+            panic ValueError("duplicated byte(%d) in encode table" % rtable[byte])
+        }
+
+        rtable[byte] = index++
+    }
+
+    return rtable
+}
+
+func rshift(byte, offset){
+    return offset > 0 ? byte >> offset : byte << -offset
+}
+
+pub let encode16 = b16encoder(BASE16_TABLE)
+pub let decode16 = b16decoder(BASE16_TABLE)
+
+pub let encode32 = b32encoder(BASE32_TABLE)
+pub let decode32 = b32decoder(BASE32_TABLE)
+
+pub let encode64 = b64encoder(BASE64_TABLE)
+pub let decode64 = b64decoder(BASE64_TABLE)
+
+pub let encode64url = b64encoder(BASE64_TABLE_URLSAFE)
+pub let decode64url = b64decoder(BASE64_TABLE_URLSAFE)

@@ -20,6 +20,7 @@ In any case, if necessary, it is possible to use a customized version for a give
 - File formats:
   - ini -- INI format parser
 - Internet protocols and related stuff:
+  - base64 -- Base16, Base32, Base64 data encodings
   - http -- HTTP modules 
   - url -- URL handling module
 - Networking and IC:
