@@ -47,7 +47,7 @@ pub func b16decoder(table) {
             - Returns: Frozen bytes object.
         */
 
-        var output = Bytes(len(data) / 2)
+        var output = Bytes(len(data) // 2)
         var index = 0
 
         if rtable == nil {
@@ -84,7 +84,7 @@ pub func b32encoder(table) {
             var length = dlength - i < 5 ? dlength - i : 5
 
             for var block = 0; block < 8; block ++ {
-                var octect = (block * 5) / 8
+                var octect = (block * 5) // 8
                 var offset = ((8 - 5) - (block * 5) % 8)
             
                 if octect >= length {
@@ -127,7 +127,7 @@ pub func b32decoder(table) {
         
         for var i = 0; i < dlength; i += 8 {    
             for var block = 0; block < 8; block++ {
-                var octect = (block * 5) / 8
+                var octect = (block * 5) // 8
                 var offset = ((8 - 5) - (block * 5) % 8)
 
                 if data[i + block] == table[-1] {
@@ -168,7 +168,7 @@ pub func b64encoder(table) {
             var length = dlength - i < 3 ? dlength - i : 3
 
             for var block = 0; block < 4; block++ {
-                var octect = (block * 6) / 8
+                var octect = (block * 6) // 8
                 var offset = ((8 - 6) - (block * 6) % 8)
 
                 if octect >= length {
@@ -211,7 +211,7 @@ pub func b64decoder(table) {
 
         for var i = 0; i < dlength; i += 4 {    
             for var block = 0; block < 4; block++ {
-                var octect = (block * 6) / 8
+                var octect = (block * 6) // 8
                 var offset = ((8 - 6) - (block * 6) % 8)
                 var val = 0
 
@@ -246,13 +246,13 @@ func compute_dlen(table, data, block_length) {
         pad++
     }
     
-    return ((len(data) - pad) * block_length) / 8
+    return ((len(data) - pad) * block_length) // 8
 }
 
 func compute_len32(data) {
     var length = len(data)
 
-    var length_nopad = (length * 8 + 4) / 5
+    var length_nopad = (length * 8 + 4) // 5
     var length_pad = length_nopad + (8 - length_nopad) % 8
 
     return length_pad
@@ -263,10 +263,10 @@ func compute_len64(data, table) {
     var table_len = len(table)
 
     if table_len == 65 {
-        return (((length * 4) / 3) + 3) & ~3 # length with padding
+        return (((length * 4) // 3) + 3) & ~3 # length with padding
     }
 
-    return (length * 8 + 6 - 1) / 6 # length without padding
+    return (length * 8 + 6 - 1) // 6 # length without padding
 }
 
 func padding(buffer, index, symbol, times) {
