@@ -1,0 +1,230 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+*/
+
+from "error" import ValueError
+from "limits" import UINT_BITS, UINT_MAX, WORDSZ
+from "random/_random" import *
+
+if HAVE_SYSRAND {
+    pub struct SREngine impl RandomT {
+        pub func discard(self, z) {
+            # Do nothing
+        }
+
+        pub func random(self) {
+            return UInt::frombytes(sysrand(UINT_BITS // 8)) / UINT_MAX
+        }
+
+        pub func randbits(self, k) {
+            var bits = WORDSZ * 8
+
+            if k < 0 {
+                panic ValueError("k must be greater than zero")
+            }
+
+            if k > bits {
+                panic ValueError("bits must be between [1,%d)" % bits)
+            }
+
+            return UInt::frombytes(sysrand(UINT_BITS // 8)) >> (bits - k)
+        }
+    }
+}
+
+pub func randbelow(engine, n) {
+    /*
+        Return a random UInt in the range [0,n).
+
+        - Parameters:
+          - engine: Instance of random engine.
+          - n: Upper end of the range.
+        - Returns: A random UInt in the range [0,n).
+    */
+
+    if n == 0 {
+        return 0
+    }
+
+    var bits = n.bits()
+    var rd = engine.randbits(bits)
+
+    loop rd >= n {
+        rd = engine.randbits(bits)
+    }
+
+    return rd
+}
+
+pub func randrange(engine, start, stop, step) {
+    /*
+        Returns a randomly selected element from the defined range.
+
+        - Parameters:
+          - engine: Instance of random engine.
+          - start: An integer specifying at which position to start.
+          - stop: An integer specifying at which position to end.
+          - step: An integer specifying the incrementation.
+        - Returns: A randomly selected UInt.
+    */
+
+    if !typeof(start, Int) {
+        panic ValueError("invalid non-integer start")
+    }
+
+    if !typeof(stop, Int) {
+        panic ValueError("invalid non-integer stop")
+    }
+
+    if !typeof(step, Int) {
+        panic ValueError("invalid non-integer step")
+    }
+
+    var width = stop - start
+
+    if step == 1 {
+        if width > 0 {
+            return start + randbelow(engine, width)
+        }
+
+        panic ValueError("empty range for randrange (%d, %d, %d)" % (start, stop, width))
+    }
+
+    var n
+
+    switch {
+        case step > 0:
+            n = (width + step - 1) // step
+        case step < 0:
+            n = (width + step + 1) // step
+        default:
+            panic ValueError("zero step for randrange")
+    }
+
+    if n <= 0 {
+        panic ValueError("empty range for randrange")
+    }
+
+    return start + step * randbelow(engine, n)
+}
+
+# -------------------- bytes ----------------------
+
+pub func _randbytes(engine, length) {
+    /*
+        Generate 'length' random bytes.
+
+        - Parameters:
+          - engine: Instance of random engine.
+          - length: Length of the bytes string to create.
+        - Returns: Bytes string of random bytes.
+    */
+
+    var bts = Bytes(length)
+
+    for var i = 0; i < length; i++ {
+        bts[i] = engine.randbits(8)
+    }
+
+    return bts
+}
+
+# -------------------- sequence -------------------
+
+pub func _randlist(engine, start, stop, step, length) {
+    /*
+        Returns a list of items randomly selected from the defined range.
+
+        - Parameters:
+          - engine: Instance of random engine.
+          - start: An integer specifying at which position to start.
+          - stop: An integer specifying at which position to end.
+          - step: An integer specifying the incrementation.
+          - length: Length of the list to create.
+        - Returns: List of items randomly selected.
+    */
+
+    var ls = [0] * length
+
+    for var i = 0; i < length; i++ {
+        ls[i] = randrange(engine, start, stop, step)
+    }
+
+    return ls
+}
+
+pub func randchoice(engine, seq) {
+    /*
+        Choose a random element from a non-empty sequence.
+
+        - Parameters:
+          - engine: Instance of random engine.
+          - seq: Non-empty sequence.
+        - Returns: A random element.
+    */
+
+    return seq[randbelow(engine, len(seq))]
+}
+
+pub func randsample(engine, population, k) {
+    /*
+        Return a k length list of unique elements chosen from the population sequence.
+
+        - Parameters:
+          - engine: Instance of random engine.
+          - population: Population sequence.
+          - k: Length of the list of unique elements.
+        - Returns: List of unique elements chosen from the population sequence
+    */
+
+    var plen = len(population)
+
+    if !typeof(k, Int) {
+        panic ValueError("invalid non-integer k")
+    }
+
+    if k < 0 {
+        panic ValueError("k is negative")
+    }
+
+    if k > plen {
+        panic ValueError("sample larger than population")
+    }
+
+    var sample = [nil] * k
+    var table = Set()
+
+    for var i = 0; i < k; i++ {
+        var index = randbelow(engine, plen)
+
+        loop index in table {
+            index = randbelow(engine, plen)
+        }
+
+        table.add(index)
+
+        sample[i] = population[index]
+    }
+
+    return sample
+}
+
+# ---------------- module - defaults --------------
+
+pub let DEFAULT_ENGINE = MTEngine()
+
+pub let choice = randchoice(DEFAULT_ENGINE)
+pub let discard = MTEngine::discard(DEFAULT_ENGINE)
+
+pub let randbits = bind(MTEngine::randbits, DEFAULT_ENGINE)
+pub let randbytes = _randbytes(DEFAULT_ENGINE)
+
+pub let randint = (a, b) => {
+    return randrange(DEFAULT_ENGINE, a, b + 1, 1)
+}
+
+pub let random = bind(MTEngine::random, DEFAULT_ENGINE)
+pub let randlist = _randlist(DEFAULT_ENGINE)
+pub let sample = randsample(DEFAULT_ENGINE)

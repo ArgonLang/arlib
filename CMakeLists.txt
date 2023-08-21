@@ -39,5 +39,6 @@ endforeach()
 
 # *** Native modules ***
 
+add_subdirectory(random)
 add_subdirectory(regex)
 add_subdirectory(ssl)

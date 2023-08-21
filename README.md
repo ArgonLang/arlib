@@ -25,5 +25,7 @@ In any case, if necessary, it is possible to use a customized version for a give
   - url -- URL handling module
 - Networking and IC:
   - ssl -- SSL/TLS wrapper for socket objects
+- Numeric and math-related functions:
+  - random -- Generate pseudo-random numbers 
 - Text processing:
   - regex -- Perl-like regex support
