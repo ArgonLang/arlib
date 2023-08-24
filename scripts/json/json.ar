@@ -1,0 +1,49 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * JSON Encoder/Decoder (RFC 8259)
+*/
+
+from "json/encoder" import JSONEncoder
+from "json/decoder" import DefaultDecoder
+from "json/parser" import JSONParser
+
+pub let __version = "@PROJECT_VERSION@"
+
+pub func dumps(data, &kwargs) {
+    /*
+        Serialize `data` to a JSON formatted string.
+
+        - Parameter data: Object to serialize.
+        - KWParameters:
+          - indent: Set initial indentation.
+          - prettify: Set whether to format the output string.
+          - separators: Tuple containing the separators to use.
+        - Returns: JSON formatted string.
+    */
+
+    var encoder = JSONEncoder(&kwargs)
+
+    return encoder.dumps(data).tostr()
+}
+
+pub func loads(buffer) {
+    /*
+        Deserialize `buffer` to Argon object.
+
+        If buffer is not an instance of type Bytes, an automatic conversion to that type will be attempted before decoding.
+
+        - Parameter buffer: buffer instance containing a valid JSON.
+        - Returns: Argon object created from the JSON document.
+    */
+
+    var parser = JSONParser(DefaultDecoder@())
+
+    if typeof(buffer, String) {
+        buffer = Bytes(buffer)
+    }
+
+    return parser.parse(buffer, 0)[0]
+}

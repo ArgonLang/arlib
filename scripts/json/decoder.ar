@@ -1,0 +1,133 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * JSON Encoder/Decoder (RFC 8259)
+*/
+
+from "json/parser" import JSONCallback, JSONDecodeError, JSONParser
+
+pub struct DefaultDecoder impl JSONCallback {
+    pub func array(self, parser, buffer, index) {
+        var start = index
+
+        index = JSONParser::skip_spaces(buffer, index + 1) # +1 Skip [
+
+        if buffer[index] == ']' {
+            return [], index + 1
+        }
+
+        var length = len(buffer)
+        var items = []
+        var item
+
+        loop index < length {
+            item, index = parser.parse(buffer, index)
+
+            items.append(item)
+
+            index = JSONParser::skip_spaces(buffer, index)
+
+            var c = buffer[index]
+
+            if c == ']' {
+                return items, index + 1
+            }
+
+            if c != ',' {
+                panic JSONDecodeError("expecting ',' delimiter", offset=index)
+            }
+
+            index = JSONParser::skip_spaces(buffer, index + 1) # +1 Skip ,
+        }
+
+        panic JSONDecodeError("unterminated array", start=start)
+    }
+
+    func keypair(self, parser, buffer, index) {
+        var key
+        var value
+
+        index = JSONParser::skip_spaces(buffer, index)
+
+        if buffer[index] != '"' {
+            panic JSONDecodeError("expecting property name enclosed in double quotes", offset=index)
+        }
+
+        key, index = self.string(parser, buffer, index)
+
+        index = JSONParser::skip_spaces(buffer, index)
+
+        if buffer[index] != ':' {
+            panic JSONDecodeError("expecting ':' delimiter", offset=index)
+        }
+
+        index = JSONParser::skip_spaces(buffer, index + 1) # Skip :
+
+        value, index = parser.parse(buffer, index)
+
+        return key, value, index
+    }
+
+    pub func object(self, parser, buffer, index) {
+        var start = index
+
+        index = JSONParser::skip_spaces(buffer, index + 1) # +1 Skip {
+
+        if buffer[index] == '}' {
+            return {}, index + 1
+        }
+
+        var length = len(buffer)
+        var obj = {}
+        var key
+        var value
+
+        loop index < length {
+            key, value, index = self.keypair(parser, buffer, index)
+
+            obj[key] = value
+
+            index = JSONParser::skip_spaces(buffer, index)
+
+            var c = buffer[index]
+
+            if c == '}' {
+                return obj, index + 1
+            }
+
+            if c != ',' {
+                panic JSONDecodeError("expecting ',' delimiter", offset=index)
+            }
+
+            index += 1
+        }
+
+        panic JSONDecodeError("unterminated object", start=start)
+    }
+
+    pub func string(self, parser, buffer, index) {
+        # Skip "
+        index += 1
+
+        if buffer[index] == '"' {
+            return "", index + 1
+        }
+
+        var start = index
+
+        var end = buffer.findbyte(index, '"')
+        loop buffer[index + end - 1] == '\\' {
+            index += end + 1
+
+            end = buffer.findbyte(index, '"')
+        }
+
+        if end == -1 {
+            panic JSONDecodeError("unterminated string", start=index)
+        }
+
+        return String::unescape(buffer[start:index + end]), index + end + 1
+    }
+}

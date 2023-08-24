@@ -22,6 +22,7 @@ In any case, if necessary, it is possible to use a customized version for a give
 - Internet protocols and related stuff:
   - base64 -- Base16, Base32, Base64 data encodings
   - http -- HTTP modules 
+  - json — JSON encoder and decoder
   - url -- URL handling module
 - Networking and IC:
   - ssl -- SSL/TLS wrapper for socket objects

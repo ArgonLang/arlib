@@ -1,0 +1,139 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * JSON Encoder/Decoder (RFC 8259)
+*/
+
+pub let JSONDecodeError = Error(@JSONDecodeError)
+
+pub trait JSONCallback {
+    pub func array(self, parser, buffer, index)
+
+    pub func object(self, parser, buffer, index)
+
+    pub func string(self, parser, buffer, index)
+}
+
+pub struct JSONParser {
+    var callback
+
+    pub func JSONParser(callback) {
+        return JSONParser@(callback)
+    }
+
+    func number(self, buffer, index) {
+        var float = false
+        var start = index
+        var c = buffer[index]
+
+        var tmp
+
+        if c == '-' || c == '+' {
+            index +=1
+        }
+
+        c = buffer[index]
+
+        loop c >= '0' && c <= '9' {
+            index += 1
+            c = buffer[index]
+        }
+
+        if c == '.' {
+            index += 1
+            c = buffer[index]
+            float = true
+
+            tmp = index
+
+            loop c >= '0' && c <= '9' {
+                index += 1
+                c = buffer[index]
+            }
+
+            if tmp == index {
+                panic JSONDecodeError("expected digits after decimal ('.') separator", offset=index)
+            }
+        }
+
+        if c == 'e' || c == 'E' {
+            index += 1
+            c = buffer[index]
+
+            if c == '+' || c == '-' {
+                index += 1
+                c = buffer[index]
+            }
+
+            tmp = index
+
+            loop c >= '0' && c <= '9' {
+                index += 1
+                c = buffer[index]
+            }
+
+            if tmp == index {
+                panic JSONDecodeError("expected digits after exponent", offset=index)
+            }
+        }
+
+        if float {
+            return Decimal::parse(buffer[start:index]), index
+        }
+
+        return Int::parse(buffer[start:index], 10), index
+    }
+
+    pub func parse(self, buffer, index) {
+        /*
+            Deserialize `buffer` to Argon object.
+
+            - Parameters:
+              - buffer: Instance containing a valid JSON.
+              - index: Offset from which to start reading the buffer.
+            - Returns: Tuple containing the related Argon object and the offset where the parser stopped.
+        */
+
+        switch buffer[index] {
+            case '"':
+                return self.callback.string(self, buffer, index)
+            case '[':
+                return self.callback.array(self, buffer, index)
+            case '{':
+                return self.callback.object(self, buffer, index)
+            case 'n':
+                if buffer[index: index + 4] == b"null" { 
+                    return nil, index + 4
+                }
+            case 't':
+                if buffer[index: index + 4] == b"true" { 
+                    return true, index + 4
+                }
+            case 'f':
+                if buffer[index: index + 5] == b"false" { 
+                    return false, index + 5
+                }
+            default:
+                return self.number(buffer, index)
+        }
+    }
+
+    pub func skip_spaces(buffer, index) {
+        var c = buffer[index]
+        var l = len(buffer)
+
+        loop c == '\t' || c == '\n' || c == '\r' || c == ' ' {
+            index += 1
+
+            if l <= index {
+                break
+            }
+
+            c = buffer[index]
+        }
+
+        return index
+    }
+}

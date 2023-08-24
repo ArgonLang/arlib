@@ -1,0 +1,171 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * JSON Encoder/Decoder (RFC 8259)
+*/
+
+from "io" import Writer
+from "io/bufio" import BufferedWriter, DEFAULT_BUFSIZE
+
+pub let JSONEncodeError = Error(@JSONEncodeError)
+
+pub trait JSONEncoderT {
+    /*
+        This trait if implemented allows any object to be encoded in JSON, the jsonencode method when called, gets the instance of JSONEncoder as an argument. 
+        You can use JSONEncoder::write to write directly to the output buffer, or use JSONEncoder::encode to format an object.
+    */
+
+    pub func jsonencode(self, encoder)
+}
+
+struct JSONWriter impl Writer {
+    var buffer
+
+    pub func write(self, buffer) {
+        if !self.buffer {
+            self.buffer = buffer.clone()
+        } else {
+            self.buffer += buffer
+        }
+
+        return len(self.buffer)
+    }
+
+    pub func getbuffer(self) {
+        var buffer = self.buffer
+
+        self.buffer = nil
+
+        return buffer
+    }
+}
+
+pub struct JSONEncoder {
+    pub var indent
+    pub var prettify
+    var separators
+
+    var bufw
+    var writer
+
+    pub func JSONEncoder(indent=0, prettify=true, separators=(b", ", b": ")) {
+        var writer = JSONWriter@()
+
+        var bufw = BufferedWriter(writer)
+
+        return JSONEncoder@(indent, prettify, separators, bufw, writer)
+    }
+
+    pub func dumps(self, data) {
+        /*
+            Serialize `data` to a JSON formatted string.
+
+            To format a non-primitive object, the object must implement the JSONEncoderT trait.
+
+            - Parameter data: Object to serialize.
+            - Returns: JSON formatted string.
+        */
+
+        self.encode(data)
+
+        self.bufw.flush()
+
+        return self.writer.getbuffer()
+    }
+
+    pub func encode(self, data) {
+        if data == nil {
+            self.bufw.write(b"null")
+        }
+
+        switch type(data) {
+            case Bool:
+                self.bufw.write(data ? b"true" : b"false")
+            case Decimal:
+                self.bufw.write(b"%f" % data)
+            case Dict:
+                self.encode_dict(data)
+            case Int:
+                self.bufw.write(b"%d" % data)
+            case List; Tuple:
+                self.encode_array(data)
+            case String:
+                self.bufw.write(b"\"")
+                self.bufw.write(data)
+                self.bufw.write(b"\"")
+            default:
+                if !implements(data, JSONEncoderT) {
+                    panic JSONEncodeError("object is not JSON serializable", object=data)
+                }
+
+                return data.jsonencode(self)
+        }
+    }
+
+    func encode_array(self, data) {
+        var sep = self.separators[0]
+        var many = false
+
+        if !data {
+            self.bufw.write(b"[]")
+        }
+
+        self.bufw.write(self.prettify ? b"[\n" : b"[")
+
+        self.indent += 1
+
+        for var value of data {
+            many ? self.bufw.write(self.prettify ? sep + b"\n" : sep)
+
+            self.prettify ? self.bufw.write(b"\t" * self.indent)
+
+            self.encode(value)
+
+            many = true
+        }
+
+        self.indent -= 1
+
+        self.bufw.write(self.prettify ? b"\n%s]" % (b"\t" * self.indent) : b"]")
+    }
+
+    func encode_dict(self, data) {
+        var many = false
+
+        if !data {
+            self.bufw.write(b"{}")
+        }
+
+        var sep, keysep = self.separators
+
+        self.bufw.write(self.prettify ? b"{\n" : b"{")
+
+		self.indent += 1
+
+        for var key, value of data {
+            many ? self.bufw.write(self.prettify ? sep + b"\n" : sep)
+
+			self.prettify ? self.bufw.write(b"\t" * self.indent)
+
+			if !typeof(key, String) {
+				panic JSONEncodeError("expected string as key", key=key, type=type(key))
+			}
+
+            self.bufw.write(b"\"%s\"%s" % (key, keysep))
+
+			self.encode(value)
+
+            many = true
+        }
+
+        self.indent -= 1
+
+        self.bufw.write(self.prettify ? b"\n%s}" % (b"\t" * self.indent) : b"}")
+    }
+
+    pub func write(self, buffer) {
+        return self.bufw.write(buffer)
+    }
+}
