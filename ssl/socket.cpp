@@ -62,7 +62,7 @@ bool ConfigureHostname(SSLSocket *socket, const char *name, ArSize length) {
     return false;
 }
 
-CallbackReturnStatus ExecSSLWantOp(SSLSocket *socket, UserCB cb, int retvat) {
+CallbackStatus ExecSSLWantOp(SSLSocket *socket, UserCB cb, int retvat) {
     switch (SSL_get_error(socket->ssl, retvat)) {
         case SSL_ERROR_WANT_READ:
             socket->want_status = SSL_ERROR_WANT_READ;
@@ -78,7 +78,7 @@ CallbackReturnStatus ExecSSLWantOp(SSLSocket *socket, UserCB cb, int retvat) {
                                     socket->buffer.capacity))
                 break;
 
-            return CallbackReturnStatus::SUCCESS_NO_WAKEUP;
+            return CallbackStatus::CONTINUE;
         case SSL_ERROR_WANT_WRITE:
             if ((retvat = BIO_read(socket->out_bio, socket->buffer.buffer, (int) socket->buffer.capacity)) < 0)
                 retvat = 0;
@@ -91,16 +91,16 @@ CallbackReturnStatus ExecSSLWantOp(SSLSocket *socket, UserCB cb, int retvat) {
                                 0))
                 break;
 
-            return CallbackReturnStatus::SUCCESS_NO_WAKEUP;
+            return CallbackStatus::CONTINUE;
         default:
             SSLError();
             break;
     }
 
-    return CallbackReturnStatus::FAILURE;
+    return CallbackStatus::FAILURE;
 }
 
-CallbackReturnStatus HandshakeCallback(const Event *event, SSLSocket *socket, int status) {
+CallbackStatus HandshakeCallback(const Event *event, SSLSocket *socket, int status) {
     int res;
 
     if (status < 0)
@@ -112,7 +112,7 @@ CallbackReturnStatus HandshakeCallback(const Event *event, SSLSocket *socket, in
 
             ErrorFormat(kSSLError[0], "handshake BIO_write error");
 
-            return CallbackReturnStatus::FAILURE;
+            return CallbackStatus::FAILURE;
         }
     }
 
@@ -127,20 +127,20 @@ CallbackReturnStatus HandshakeCallback(const Event *event, SSLSocket *socket, in
 
         argon::vm::FiberSetAsyncResult(event->fiber, (ArObject *) Nil);
 
-        return CallbackReturnStatus::SUCCESS;
+        return CallbackStatus::SUCCESS;
     }
 
     auto r_status = ExecSSLWantOp(socket, (UserCB) HandshakeCallback, res);
-    if (r_status == CallbackReturnStatus::FAILURE)
+    if (r_status == CallbackStatus::FAILURE)
         socket->lock.Release();
 
     return r_status;
 }
 
-CallbackReturnStatus ReadCallback(const Event *event, SSLSocket *socket, int status) {
+CallbackStatus ReadCallback(const Event *event, SSLSocket *socket, int status) {
     ArObject *ret;
 
-    CallbackReturnStatus r_status;
+    CallbackStatus r_status;
 
     size_t b_read;
 
@@ -183,11 +183,11 @@ CallbackReturnStatus ReadCallback(const Event *event, SSLSocket *socket, int sta
 
             Release(ret);
 
-            return CallbackReturnStatus::SUCCESS;
+            return CallbackStatus::SUCCESS;
         }
     }
 
-    if ((r_status = ExecSSLWantOp(socket, (UserCB) ReadCallback, res)) != CallbackReturnStatus::FAILURE)
+    if ((r_status = ExecSSLWantOp(socket, (UserCB) ReadCallback, res)) != CallbackStatus::FAILURE)
         return r_status;
 
     CLEANUP:
@@ -198,16 +198,16 @@ CallbackReturnStatus ReadCallback(const Event *event, SSLSocket *socket, int sta
 
     socket->lock.Release();
 
-    return CallbackReturnStatus::FAILURE;
+    return CallbackStatus::FAILURE;
 }
 
-CallbackReturnStatus ShutdownCallback(const Event *event, SSLSocket *socket, int status) {
+CallbackStatus ShutdownCallback(const Event *event, SSLSocket *socket, int status) {
     int res;
 
     if (status < 0) {
         socket->lock.Release();
 
-        return CallbackReturnStatus::FAILURE;
+        return CallbackStatus::FAILURE;
     }
 
     if (event != nullptr && socket->want_status == SSL_ERROR_WANT_READ) {
@@ -217,7 +217,7 @@ CallbackReturnStatus ShutdownCallback(const Event *event, SSLSocket *socket, int
 
             ErrorFormat(kSSLError[0], "shutdown BIO_write error");
 
-            return CallbackReturnStatus::FAILURE;
+            return CallbackStatus::FAILURE;
         }
     }
 
@@ -237,23 +237,23 @@ CallbackReturnStatus ShutdownCallback(const Event *event, SSLSocket *socket, int
             Release(ret);
         }
 
-        return CallbackReturnStatus::SUCCESS;
+        return CallbackStatus::SUCCESS;
     }
 
     auto r_status = ExecSSLWantOp(socket, (UserCB) ShutdownCallback, res);
-    if (r_status == CallbackReturnStatus::FAILURE)
+    if (r_status == CallbackStatus::FAILURE)
         socket->lock.Release();
 
     return r_status;
 }
 
-CallbackReturnStatus UnwrapCallback(const Event *event, SSLSocket *socket, int status) {
+CallbackStatus UnwrapCallback(const Event *event, SSLSocket *socket, int status) {
     int res;
 
     if (status < 0) {
         socket->lock.Release();
 
-        return CallbackReturnStatus::FAILURE;
+        return CallbackStatus::FAILURE;
     }
 
     if (event != nullptr && socket->want_status == SSL_ERROR_WANT_READ) {
@@ -263,7 +263,7 @@ CallbackReturnStatus UnwrapCallback(const Event *event, SSLSocket *socket, int s
 
             ErrorFormat(kSSLError[0], "unwrap BIO_write error");
 
-            return CallbackReturnStatus::FAILURE;
+            return CallbackStatus::FAILURE;
         }
     }
 
@@ -279,17 +279,17 @@ CallbackReturnStatus UnwrapCallback(const Event *event, SSLSocket *socket, int s
             socket->lock.Release();
         }
 
-        return CallbackReturnStatus::SUCCESS;
+        return CallbackStatus::SUCCESS;
     }
 
     auto r_status = ExecSSLWantOp(socket, (UserCB) UnwrapCallback, res);
-    if (r_status == CallbackReturnStatus::FAILURE)
+    if (r_status == CallbackStatus::FAILURE)
         socket->lock.Release();
 
     return r_status;
 }
 
-CallbackReturnStatus WriteCallback(const Event *event, SSLSocket *socket, int status) {
+CallbackStatus WriteCallback(const Event *event, SSLSocket *socket, int status) {
     ArObject *ret;
 
     size_t written;
@@ -299,7 +299,7 @@ CallbackReturnStatus WriteCallback(const Event *event, SSLSocket *socket, int st
 
         socket->lock.Release();
 
-        return CallbackReturnStatus::FAILURE;
+        return CallbackStatus::FAILURE;
     }
 
     if (event != nullptr) {
@@ -312,7 +312,7 @@ CallbackReturnStatus WriteCallback(const Event *event, SSLSocket *socket, int st
 
             Release(ret);
 
-            return CallbackReturnStatus::SUCCESS;
+            return CallbackStatus::SUCCESS;
         } else if (socket->want_status == SSL_ERROR_WANT_READ) {
             socket->want_status = 0;
 
@@ -323,7 +323,7 @@ CallbackReturnStatus WriteCallback(const Event *event, SSLSocket *socket, int st
 
                 ErrorFormat(kSSLError[0], "write BIO_write error");
 
-                return CallbackReturnStatus::FAILURE;
+                return CallbackStatus::FAILURE;
             }
         }
     }
@@ -344,21 +344,21 @@ CallbackReturnStatus WriteCallback(const Event *event, SSLSocket *socket, int st
                             b_written, 0)) {
             socket->lock.Release();
 
-            return CallbackReturnStatus::FAILURE;
+            return CallbackStatus::FAILURE;
         }
 
-        return CallbackReturnStatus::SUCCESS_NO_WAKEUP;
+        return CallbackStatus::CONTINUE;
     }
 
     auto r_status = ExecSSLWantOp(socket, (UserCB) WriteCallback, res);
-    if (r_status != CallbackReturnStatus::FAILURE)
+    if (r_status != CallbackStatus::FAILURE)
         return r_status;
 
     BufferRelease(&socket->user_buffer.arBuffer);
 
     socket->lock.Release();
 
-    return CallbackReturnStatus::FAILURE;
+    return CallbackStatus::FAILURE;
 }
 
 ARGON_METHOD(sslsocket_handshake, handshake,
@@ -516,7 +516,7 @@ ARGON_METHOD(sslsocket_shutdown, shutdown,
 
     SSL_shutdown(self->ssl);
 
-    if (ShutdownCallback(nullptr, self, 0) == CallbackReturnStatus::SUCCESS) {
+    if (ShutdownCallback(nullptr, self, 0) == CallbackStatus::SUCCESS) {
         self->lock.Release();
 
         return (ArObject *) IncRef(Nil);
@@ -541,7 +541,7 @@ ARGON_METHOD(sslsocket_unwrap, unwrap,
 
     SSL_shutdown(self->ssl);
 
-    if (UnwrapCallback(nullptr, self, 0) == CallbackReturnStatus::SUCCESS) {
+    if (UnwrapCallback(nullptr, self, 0) == CallbackStatus::SUCCESS) {
         self->lock.Release();
 
         return (ArObject *) IncRef(self->socket);
