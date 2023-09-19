@@ -9,7 +9,7 @@
 #include <argon/vm/datatype/integer.h>
 #include <argon/vm/datatype/nil.h>
 
-#include <argon/vm/runtime.cpp>
+#include <argon/vm/runtime.h>
 
 #include <regex/regex.h>
 
