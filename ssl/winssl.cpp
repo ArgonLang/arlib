@@ -2,6 +2,8 @@
 //
 // Licensed under the Apache License v2.0
 
+#include <array>
+
 #include <argon/util/macros.h>
 
 #ifdef _ARGON_PLATFORM_WINDOWS
