@@ -39,6 +39,8 @@ endforeach()
 
 # *** Native modules ***
 
+add_compile_definitions(_ARGONAPI_LIB)
+
 add_subdirectory(random)
 add_subdirectory(regex)
 add_subdirectory(ssl)
