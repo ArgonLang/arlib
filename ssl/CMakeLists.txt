@@ -14,6 +14,7 @@ add_library(${PROJECT_NAME} SHARED
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "_")
 
 set_target_properties(${PROJECT_NAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${SSL_OUTPUT_DIRECTORY})
+set_target_properties(${PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${SSL_OUTPUT_DIRECTORY})
 
 if (WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE Argon::ArgonVM OpenSSL::SSL crypt32.lib)
@@ -22,4 +23,4 @@ else()
 endif ()
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/ssl.ar" ${SSL_OUTPUT_DIRECTORY})
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/ssl.ar" ${SSL_OUTPUT_DIRECTORY}/ssl.ar)
