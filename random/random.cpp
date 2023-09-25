@@ -18,7 +18,9 @@
 #include <random/random.h>
 
 #ifdef _ARGON_PLATFORM_WINDOWS
+#include <windows.h>
 #include <bcrypt.h>
+#undef CONST
 #else
 
 #include <sys/random.h>
@@ -114,7 +116,7 @@ bool arlib::random::SystemRandom(unsigned char *buffer, ArSize buflen) {
         return false;
     }
 
-    status = BCryptGenRandom(hAlgorithm, (BYTE) buffer, buflen, 0);
+    status = BCryptGenRandom(hAlgorithm, (PUCHAR) buffer, buflen, 0);
 
     BCryptCloseAlgorithmProvider(hAlgorithm, 0);
 
