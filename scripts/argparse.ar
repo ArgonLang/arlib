@@ -1,0 +1,437 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * This module draws inspiration from Python's Argparse and serves as a library for parsing command-line options.
+*/
+
+import "io"
+import "os"
+import "runtime"
+
+pub let __version = "@PROJECT_VERSION@"
+
+let ArgparseError = Error(@ArgparseError)
+pub let DEFAULT_SWITCH = "-"
+
+pub trait APHelper {
+    pub func format(self, ap)
+
+    pub func format_usage(self, ap) {
+        base := "usage: %s" % ap.name
+        shown := Set()
+
+        if ap.positional {
+            for var cursor of ap.positional {
+                base += " %s" % cursor.name
+                shown.add(cursor.name)
+            }
+        }
+
+        comma := false
+        for var key, value of ap.argmap {
+            if value.name not in shown && value.required {
+                base += "%s%s" % (
+                    (comma ? ", " : " "),
+                    (value.aliases ? "%s|%s" % (value.name, "|".join(value.aliases)) : value.name)
+                )
+
+                shown.add(value.name)
+                comma = true
+            }
+        }
+
+        io.print(base)
+    }
+}
+
+pub struct APDefaultHelper impl APHelper {
+    pub func format(self, ap) {
+        self.format_usage(ap)
+
+        io.print("\n%s\n" % ap.description)
+
+        options := []
+        shown := Set()
+        maxlen := 0
+
+        for var key, value of ap.argmap {
+            if value.name in shown {
+                continue
+            }
+
+            name := value.name
+
+            if value.aliases {
+                name += ", %s" % ", ".join(value.aliases)
+            }
+
+            if value.name.startswith(ap.o_prefix) {
+                options.append((name, value.help ? value.help : ""))
+            }
+
+            namelen := len(name) + 4
+
+            if namelen > maxlen {
+                maxlen = namelen
+            }
+
+            shown.add(value.name)
+        }
+
+        if ap.positional {
+            io.print("positional arguments:")
+            for var cursor of ap.positional {
+                io.print("%s%s%s" % (cursor.name, " " * (maxlen - len(cursor.name)), cursor.help ? cursor.help : ""))
+            }
+        }
+
+        io.print("\noptions:")
+        for var cursor of options {
+            io.print("%s%s%s" % (cursor[0], " " * (maxlen - len(cursor[0])), cursor[1]))
+        }
+
+        io.print("\n%s" % ap.epilog)
+    }
+}
+
+struct Argument {
+    pub var name
+    pub var aliases
+
+    pub var choices
+    pub var help
+    
+    pub var dest
+    pub var action
+    pub var nargs
+    pub var def
+
+    pub var required
+}
+
+pub struct Argparse {
+    pub var name
+    pub var description
+    pub var epilog
+
+    pub var o_prefix
+
+    var exit_on_error
+
+    var helper
+
+    pub var argmap
+    pub var positional
+
+    pub func Argparse(name=, description="", epilog="", add_help=true, exit_on_error=true, helper=, prefix=DEFAULT_SWITCH) {
+        /*
+            Creates a new Argparser object for parsing command-line arguments.
+
+            - KWParameters:
+              - name:          Name of the program.
+              - description:   A brief description of the program.
+              - epilog:        Additional text to display at the end of the help message.
+              - add_help:      Whether to add a help option (default: true).
+              - exit_on_error: Whether to exit the program on argument parsing errors (default: true).
+              - helper:        An object used to format the help message (default: APDefaultHelper).
+              - prefix:        The prefix used for command-line switches (default: DEFAULT_SWITCH).
+            - Returns:         A new Arparser object for parsing command-line arguments.
+        */
+
+        if !name && runtime.args {
+            name = runtime.args[0]
+            lpsep := name.rfind(os.pathsep)
+
+            if lpsep >= 0 {
+                name = name[lpsep + 1:]
+            }
+        }
+
+        ap := Argparse@(
+            name,
+            description,
+            epilog,
+
+            prefix,
+            exit_on_error,
+
+            helper ? helper : APDefaultHelper@(),
+
+            {},
+            []
+        )
+
+        if add_help {
+            # Setup default help option
+            ap.addarg("%sh" % prefix, "%shelp" % (prefix * 2), help="show this help message and exit", action=@print_help)
+        }
+
+        return ap
+    }
+
+    pub func addarg(self, name, action=@store, choices=, default=, dest=, help=, nargs=, required=false, ...aliases) {
+        /*
+            Define how a single command argument should be parsed.
+
+            - Parameters:
+              - name:       Name or option, e.g.: filename, -f.
+              - ...aliases: Option aliases, e.g.: --filename.
+            - KWParameters:
+              - action:   Action to be taken when this argument is encountered.
+              - choices:  Sequence of the allowable values for the argument.
+              - default:  The value produced if the argument is absent.
+              - dest:     Name of the attribute to be added to the object returned by parse().
+              - help:     A brief description of what the argument does.
+              - nargs:    Number of command arguments that should be consumed.
+              - required: Indicating whether the command-line option can be omitted (default: yes).
+            - Returns:    Argparse itself.
+        */
+
+        arg := Argument@(
+            name,
+            aliases,
+
+            choices,
+            help,
+
+            dest ? dest : name,
+            action,
+            nargs,
+            default,
+
+            required
+        )
+
+        self.argmap[name] = arg
+
+        # Push alias
+        if aliases {
+            for var alias of aliases {
+                self.argmap[alias] = arg
+            }
+        }
+
+        # Push options
+        if !name.startswith(self.o_prefix) {
+            self.positional.append(arg)
+
+            arg.required = true
+        }
+
+        return self
+    }
+
+    pub func parse(self, args=) {
+        /*
+            Parse the command line and return a populated dictionary.
+
+            - KWParameters:
+              - args:  List of strings to parse. The default is 'runtime.args'.
+            - Returns: Return a populated dictionary with values obtained by parsing the command line.
+        */
+
+        if !args {
+            args = runtime.args[1:]
+        }
+
+        result := trap self.parse_args(args)
+
+        if !result {
+            result = result.err()
+
+            if self.exit_on_error {
+                io.perror(result.reason)
+
+                os.exit(os.EXIT_FAILURE)
+            }
+
+            return {}
+        }
+
+        return result.ok()
+    }
+
+    func parse_args(self, args) {
+        arlen := len(args)
+        polen := len(self.positional)
+
+        index := 0
+        pindex := 0
+
+        result := {}
+
+        option := nil
+
+        loop index < arlen {
+            cursor := args[index]
+
+            if !cursor.startswith(self.o_prefix) && pindex < polen {
+                option = self.positional[pindex++]
+
+                result[option.dest], index = self.parse_optarg(cursor, args, index, option)
+
+                continue
+            }
+
+            if cursor in self.argmap {
+                option = self.argmap[cursor]
+
+                index = self.parse_option(cursor, args, index + 1, result, option)
+            } else {
+                panic ArgparseError("'%s' invalid option" % cursor)
+            }
+        }
+
+        if pindex < polen {
+            self.helper.format(self)
+            
+            os.exit(os.EXIT_FAILURE)
+        }
+
+        # Check required options
+        for var key, value of self.argmap {
+            if value.required && value.dest not in result {
+                panic ArgparseError("'%s' option marked as required" % value.name)
+            }
+        }
+
+        return result
+    }
+
+    func parse_optarg(self, activator, args, index, option) {
+        arlen := len(args)
+        nargs := option.nargs
+
+        var cursor
+        var optlist
+
+        switch {
+            case nargs == nil:
+                if index >= arlen || args[index].startswith(self.o_prefix) {
+                    panic ArgparseError("'%s' option expected an argument" % activator)
+                }
+
+                return validate_choices(activator, args[index], option.choices), index + 1
+            case typeof(nargs, Int):
+                count := 0
+
+                optlist = []
+
+                loop index < arlen && count < nargs {
+                    cursor = args[index++]
+
+                    if !cursor.startswith(self.o_prefix) {
+                        optlist.append(validate_choices(activator, cursor, option.choices))
+                        
+                        count += 1
+                    }
+                }
+
+                if count < nargs {
+                    panic ArgparseError("'%s' option expected %d args but %d was passed" % (activator, nargs, count))
+                }
+
+                return optlist, index
+            case nargs == "?":
+                if index >= arlen || args[index].startswith(self.o_prefix) {
+                    return option.def, index
+                }
+
+                return validate_choices(activator, args[index], option.choices), index + 1
+            default:
+                if nargs != "+" && nargs != "*" {
+                    panic ArgparseError("'%s' invalid nargs option" % nargs)
+                }
+        }
+
+        optlist = []
+
+        loop index < arlen {
+            cursor = args[index]
+
+            if cursor.startswith(self.o_prefix) {
+                break
+            }
+
+            optlist.append(validate_choices(activator, cursor, option.choices))
+
+            index += 1
+        }
+
+        if option.nargs == "+" && !optlist {
+            panic ArgparseError("'%s' expected at least one argument" % activator)
+        }
+
+        return optlist, index
+    }
+
+    func parse_option(self, activator, args, index, result, option) {
+        var current
+        var new
+
+        switch option.action {
+            case @print_help:
+                self.helper.format(self)
+
+                os.exit(os.EXIT_SUCCESS)
+            case @store:
+                result[option.dest], index = self.parse_optarg(activator, args, index, option)
+            case @store_append:
+                if option.dest not in result {
+                    result[option.dest], index = self.parse_optarg(activator, args, index, option)
+
+                    break
+                }
+
+                current = result[option.dest]
+
+                new, index = self.parse_optarg(activator, args, index, option)
+
+                if typeof(current, List) {
+                    result[option.dest] = current.append(new)
+                } else {
+                    result[option.dest] = [current, new]
+                }
+            case @store_extend:
+                if option.dest not in result {
+                    result[option.dest], index = self.parse_optarg(activator, args, index, option)
+
+                    break
+                }
+
+                current = result[option.dest]
+
+                new, index = self.parse_optarg(activator, args, index, option)
+
+                if typeof(current, List) {
+                    if typeof(new, List) {
+                        result[option.dest] = current + new
+                    } else {
+                        result[option.dest] = current.append(new)
+                    }
+                } else {
+                    result[option.dest] = [current, new]
+                }
+            case @store_false:
+                result[option.dest] = false
+            case @store_true:
+                result[option.dest] = true
+            default:
+                panic ArgparseError("'%s': '%s' invalid action" %(activator, option.action))
+        }
+
+        return index
+    }
+}
+
+func validate_choices(option, argument, choices) {
+    if choices {
+        if argument not in choices {
+            panic ArgparseError("%s invalid choice: '%s', choose from: %s" % (option, argument, typeof(choices, List, Tuple) ? ", ".join(choices) : choices))
+        }
+    }
+
+    return argument
+}
