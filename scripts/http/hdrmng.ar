@@ -7,7 +7,7 @@
 */
 
 from "error" import TypeError
-from "http/utils" import HTTPError, MAXLINELEN, MAXLINEOVF
+from "http/utils" import HTTPError
 from "regex" import Pattern
 
 pub let VALID_NAME = Pattern(r#"[^:\s][^:\r\n]*"#)
@@ -48,11 +48,7 @@ pub struct HeadersManager {
 
     pub func parse(self, stream) {
         loop {
-            var line = stream.readline(MAXLINEOVF)
-            if len(line) > MAXLINELEN {
-                panic HTTPError("line too long", length=len(line), max=MAXLINELEN)
-            }
-
+            var line = stream.readline(-1)
             if !line || line == b"\n" || line == b"\r\n" {
                 break
             }
