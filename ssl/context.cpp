@@ -411,16 +411,17 @@ ARGON_METHOD(sslcontext_load_cert_chain, load_cert_chain,
     void *orig_pwd_userdata;
 
     if (kwargs != nullptr) {
-        auto *tkey = (String *) DictLookup((Dict *) kwargs, (const char *) "keyfile");
-        if (tkey == nullptr && argon::vm::IsPanicking()) {
-            Release(certfile);
+        String *tkey;
 
+        if (!KParamLookup((Dict *) kwargs, "keyfile", type_string_, (ArObject **) &tkey, nullptr, true)) {
+            Release(certfile);
             return nullptr;
-        } else
+        }
+
+        if (tkey != nullptr)
             Replace((ArObject **) &keyfile, (ArObject *) tkey);
 
-        callback = DictLookup((Dict *) kwargs, (const char *) "password");
-        if (callback == nullptr && argon::vm::IsPanicking()) {
+        if (!KParamLookup((Dict *) kwargs, "password", nullptr, &callback, nullptr, true)) {
             Release(certfile);
             Release(keyfile);
 
@@ -459,7 +460,7 @@ ARGON_METHOD(sslcontext_load_cert_chain, load_cert_chain,
     }
 
     errno = 0;
-    if (SSL_CTX_use_PrivateKey_file(self->ctx, (const char *) ARGON_RAW_STRING(certfile), SSL_FILETYPE_PEM) != 1) {
+    if (SSL_CTX_use_PrivateKey_file(self->ctx, (const char *) ARGON_RAW_STRING(keyfile), SSL_FILETYPE_PEM) != 1) {
         if (!argon::vm::IsPanicking())
             errno != 0 ? ErrorFromErrno(errno) : SSLError();
 
@@ -729,19 +730,8 @@ ARGON_METHOD(sslcontext_wrap, wrap,
         return nullptr;
     }
 
-    if (kwargs != nullptr) {
-        hostname = (String *) DictLookup((Dict *) kwargs, (const char *) "hostname");
-        if (hostname == nullptr && argon::vm::IsPanicking())
-            return nullptr;
-
-        if (hostname != nullptr && !AR_TYPEOF(hostname, type_string_)) {
-            ErrorFormat(kTypeError[0], kTypeError[2], type_string_->name, AR_TYPE_QNAME(hostname));
-
-            Release(hostname);
-
-            return nullptr;
-        }
-    }
+    if (!KParamLookup((Dict *) kwargs, "hostname", type_string_, (ArObject **) &hostname, nullptr, true))
+        return nullptr;
 
     std::unique_lock _(((SSLContext *) _self)->lock);
 

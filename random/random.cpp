@@ -156,8 +156,7 @@ ARGON_FUNCTION(mtengine_mtengine, MTEngine,
     ArSize seed = rd();
 
     if (kwargs != nullptr) {
-        o_seed = (Integer *) DictLookup((Dict *) kwargs, (const char *) "seed");
-        if (o_seed == nullptr && argon::vm::IsPanicking())
+        if(KParamLookup((Dict *) kwargs, (const char *) "seed",nullptr,(ArObject**)&o_seed,nullptr,true))
             return nullptr;
 
         if (o_seed != nullptr) {
