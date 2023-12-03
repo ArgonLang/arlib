@@ -1,0 +1,430 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * This module provides functionality for initiating and managing processes.
+ * It facilitates the creation of processes, establishes connections with their input/output/error pipes,
+ * and allows the retrieval of their return codes upon completion.
+*/
+
+from "error" import TimeoutError, TypeError
+
+import "chrono"
+import "io"
+import "os"
+import "runtime"
+
+pub let __version = "@PROJECT_VERSION@"
+
+pub let ProcessError = Error(@ProcessError)
+
+if runtime.os != "windows" {
+	pub let WIFEXITED = os.wpstatus(@WIFEXITED)
+	pub let WEXITSTATUS = os.wpstatus(@WEXITSTATUS)
+	pub let WIFSIGNALED = os.wpstatus(@WIFSIGNALED)
+	pub let WTERMSIG = os.wpstatus(@WTERMSIG)
+	pub let WCOREDUMP = os.wpstatus(@WCOREDUMP)
+	pub let WIFSTOPPED = os.wpstatus(@WIFSTOPPED)
+	pub let WSTOPSIG = os.wpstatus(@WSTOPSIG)
+	pub let WIFCONTINUED = os.wpstatus(@WIFCONTINUED)
+}
+
+func Args2OSSpec(args) {
+    if args == nil {
+        return nil
+    }
+
+    if !typeof(args, String, List, Tuple) {
+        panic TypeError("'args' type must be String, List, Tuple or nil")
+    }
+
+    if runtime.os == "windows" {
+        if typeof(args, List, Tuple) {
+            args = " ".join(args)
+        }
+
+        return args
+    }
+
+    return args.splitws(-1)
+}
+
+func CheckPipe(pipe) {
+    if pipe {
+        if !typeof(pipe, List, Tuple, io.File) && pipe != @pipe {
+            panic TypeError("expected @pipe, File type or List/Tuple [read, write] as pipe")
+        }
+    }
+
+    if typeof(pipe, List, Tuple) {
+        for var i = 0; i<2; i++ {
+            if !typeof(pipe[i], io.File) {
+                panic TypeError("expected File type at index: %i" % i)
+            }
+        }
+        return pipe
+    }
+
+    if pipe == @pipe {
+        return io.mkpipe()
+    }
+
+    return pipe, pipe
+}
+
+pub async func asyncrun(path, &kwargs) {
+    /*
+        This function enables the asynchronous execution of a process, returning the process's exit code once its execution is complete.
+
+        - Parameter path: The path of the process to execute.
+        - KWParameters: The named arguments that will be passed to the Process constructor.
+        - Returns: The process exit code.
+    */
+
+	proc := Process(path, &kwargs)
+	return proc.wait()
+}
+
+pub struct Process impl io.Reader, io.Writer {
+	var path
+	var args
+	var fds
+
+	var handle
+	var exitcode
+
+	var signaled = false
+
+	pub func Process(path, args=, envs=, shell=false, &kwargs) {
+	    /*
+            Creates a new Process object associated with the newly created process.
+
+            The Process function supports various options for defining stdin, stdout, or stderr.
+            Specifically, you can pass a File object, or a list/tuple containing two File objects like [read, write].
+            Alternatively, you can use the '@pipe' atom to indicate the need for constructing and associating a pipe.
+
+            Example of how to execute and control a process:
+            p := Process("/bin/sh", stdin=@pipe, stdout=@pipe, stderr=@pipe)
+            p.writeline("ls;exit")
+            p.read(-1)
+
+            - Parameter path: The path of the process to execute.
+            - KWParameters:
+              - args: The arguments used to launch the process. This may be a list or a string.
+              - envs: The environment variables used to launch the process.
+              - shell: If shell is True, the specified command will be executed through the shell.
+              - stdin: Indicates the standard input that the launched process should use.
+              - stdout: Indicates the standard output that the launched process should use.
+              - stderr: Indicates the standard error that the launched process should use.
+            - Returns: Process object associated with the newly created process.
+            - Remarks: Additional options can be specified based on the operating system in use.
+            For further details, refer to `os.execve` on POSIX systems and `os.createprocess` for Windows systems.
+        */
+
+        if !typeof(path, String) {
+            panic TypeError("expected '%s' got '%s'" % (String, type(path)))
+        }
+
+        if !path {
+            panic ProcessError("empty path")
+        }
+
+        # Format args
+        args = Args2OSSpec(args)
+
+        return Process::invoke(path, args, &kwargs)
+    }
+
+	if runtime.os == "windows" {
+		func invoke(path, args, shell=, stdin=, stdout=, stderr=, &kwargs) {
+			stdin = CheckPipe(stdin)
+			stdout = CheckPipe(stdout)
+			stderr = CheckPipe(stderr)
+
+			if !kwargs {
+			    kwargs = Dict()
+			}
+
+			kwargs["stdin"] = stdin[0]
+            kwargs["stdout"] = stdout[1]
+            kwargs["stderr"] = stderr[1]
+
+			if shell {
+				if args {
+					args = "/C \"%s\"" % path
+				} else {
+					args = "/C \"%s %s\"" % (path, args)
+				}
+
+				path = os.expandvar("%COMSPEC%")
+			}
+
+            handle := os.createprocess(path, args, &kwargs)
+
+			return Process@(path, args, [stdin[1], stdout[0], stderr[0]], handle, nil)
+		}
+
+		pub func wait(self, timeout=os.TIMEOUT_INFINITE) {
+		    /*
+		        Wait for child process to terminate.
+
+		        If the process does not terminate after timeout seconds, raise a TimeoutError.
+
+		        - KWParameter:
+		          - timeout: Maximum duration(ms) within which the wait for the process to terminate should be constrained.
+		        - Returns: The process exit code.
+		    */
+
+			if self.exitcode {
+				return self.exitcode
+			}
+
+			self.handle.waitobject(timeout=timeout)
+
+			exitcode, ok := os.getexitcode(self.handle)
+
+			assert ok
+
+			self.exitcode = exitcode
+
+			return exitcode
+		}
+	} else {
+		func invoke(path, args, shell=, stdin=, stdout=, stderr=, &kwargs) {
+			stdin = CheckPipe(stdin)
+			stdout = CheckPipe(stdout)
+			stderr = CheckPipe(stderr)
+
+			if shell {
+				args = "-c '%s %s'" % (path, args)
+				path = "/bin/sh"
+			}
+
+			handle := os.fork()
+
+			if handle != 0 {
+				return Process@(path, args, [stdin[1], stdout[0], stderr[0]], handle, nil)
+			}
+
+			var tmp
+
+			if stdin[0] {
+				tmp = trap os.dup(stdin[0].getfd(), newfd=0)
+				if !tmp {
+					io.perror(tmp.err())
+					os.exit(-1)
+				}
+
+				stdin[0] != stdin[1] ? stdin[1].close()
+			}
+
+			if stdout[1] {
+				tmp = trap os.dup(stdout[1].getfd(), newfd=1)
+				if !tmp {
+					io.perror(tmp.err())
+					os.exit(-1)
+				}
+
+				stdout[0] != stdout[1] ? stdout[0].close()
+			}
+
+			if stderr[1] {
+				tmp = trap os.dup(stderr[1].getfd(), newfd=2)
+				if !tmp {
+					io.perror(tmp.err())
+					os.exit(-1)
+				}
+
+				stderr[0] != stderr[1] ? stderr[0].close()
+			}
+
+			if kwargs && "name" not in kwargs {
+				kwargs["name"] = true
+			}
+
+			tmp = trap os.execve(path, args, &kwargs)
+
+			io.perror(tmp.err())
+
+			os.exit(-1)
+		}
+
+		func issignaled(self) {
+		    return self.signaled
+		}
+
+		func check_exitstatus(self, status) {
+			switch {
+				case WIFEXITED(status):
+					self.exitcode = WEXITSTATUS(status)
+				case WIFSIGNALED(status):
+					self.exitcode = WTERMSIG(status)
+					self.signaled = true
+				case WIFSTOPPED(status):
+					self.exitcode = WSTOPSIG(status)
+					self.signaled = true
+			}
+
+			return self.exitcode
+        }
+
+		pub func wait(self, timeout=) {
+            /*
+                Wait for child process to terminate.
+
+                If the process does not terminate after timeout seconds, raise a TimeoutError.
+
+                - KWParameter:
+                  - timeout: Maximum duration(ms) within which the wait for the process to terminate should be constrained.
+                - Returns: The process exit code.
+            */
+
+            if self.exitcode != nil {
+                return self.exitcode
+            }
+
+            pid, status := 0, 0
+
+            if !timeout {
+                loop true {
+                    pid, status = os.waitpid(self.handle, 0)
+                    if pid == self.handle {
+                        return self.check_exitstatus(status)
+                    }
+                }
+            }
+
+			timeout = chrono.monotonic() + timeout
+
+			loop true {
+				pid, status = os.waitpid(self.handle, os.WNOHANG)
+				if pid == self.handle {
+					return self.check_exitstatus(status)
+				}
+
+				timeout = timeout - chrono.monotonic()
+
+				if timeout < 0 {
+					break
+				}
+
+				chrono.sleep(timeout)
+			}
+
+			panic TimeoutError("timeout expires while waiting for child process")
+        }
+	}
+
+	pub func kill(self) {
+	    /*
+	        Kills the child.
+
+	        On POSIX OSs the function sends SIGKILL. On Windows kill() is an alias for terminate().
+	    */
+
+		if runtime.os == "windows" {
+			return self.terminate()
+		}
+
+		os.kill(self.handle, os.SIGKILL)
+	}
+
+	pub func poll(self) {
+	    /*
+	        Check if child process has terminated.
+
+	        - Returns: The exit code of the process if the process is terminated, otherwise returns nil.
+	    */
+
+		if self.exitcode {
+			return self.exitcode
+		}
+
+		if runtime.os == "windows" {
+			exitcode, ok := os.getexitcode(self.handle)
+			if ok {
+				self.exitcode = exitcode
+
+				return exitcode
+			}
+
+			return nil
+		}
+
+		pid, status := os.waitpid(self.handle, os.WNOHANG)
+		if pid == self.handle {
+			return self.check_exitstatus(status)
+		}
+	}
+
+	pub func terminate(self) {
+        /*
+            Stop the child.
+
+            On POSIX OSs the method sends SIGTERM. On Windows the API function TerminateProcess() is called to stop the child.
+        */
+
+		os.terminateprocess(self.handle)
+	}
+
+	pub func write(self, data) {
+	    /*
+	        Send data on process stdin.
+
+	        - Parameter data: Data to write to stdin of the process.
+	        - Returns: Number of bytes written.
+	    */
+
+		return self.fds[0].write(data)
+	}
+
+	pub func writeline(self, data) {
+        /*
+            Send data on process stdin and automatically add the new-line character.
+
+            - Parameter data: Data to write to stdin of the process.
+            - Returns: Number of bytes written.
+        */
+
+		wBytes := self.fds[0].write(data)
+		wBytes += self.fds[0].write(b"\n")
+
+		return wBytes
+	}
+
+	pub func read(self, size) {
+	    /*
+            Read data from process stdout.
+
+            - Parameter size: Number of bytes to read from the process stdout.
+            - Returns: Bytes object.
+        */
+
+		return self.fds[1].read(size)
+	}
+
+	pub func readinto(self, obj, offset) {
+        /*
+            Read data from process stdout.
+
+            - Parameters:
+              - obj: Bytes-like writable object.
+              - offset: Offset to start writing from.
+            - Returns: Number of bytes read.
+        */
+
+		return self.fds[1].readinto(obj, offset)
+	}
+
+	pub func read_err(self, size) {
+        /*
+            Read data from process stderr.
+
+            - Parameter size: Number of bytes to read from the process stderr.
+            - Returns: Bytes object.
+        */
+
+		return self.fds[2].read(size)
+	}
+}

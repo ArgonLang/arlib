@@ -25,10 +25,12 @@ In any case, if necessary, it is possible to use a customized version for a give
   - json -- JSON encoder and decoder
   - url -- URL handling module
 - Language utilities:
-  - argparse -- Parser for command-line options.
+  - argparse -- Parser for command-line options
 - Networking and IC:
   - ssl -- SSL/TLS wrapper for socket objects
 - Numeric and math-related functions:
-  - random -- Generate pseudo-random numbers 
+  - random -- Generate pseudo-random numbers
+- Operating system services:
+  - subprocess — Initiating and managing processes
 - Text processing:
   - regex -- Perl-like regex support
