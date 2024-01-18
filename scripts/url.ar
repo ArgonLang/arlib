@@ -123,8 +123,8 @@ pub func parse(url, scheme="", fragments=true) {
 
     var cursor
     for cursor of UNSAFE_URL_BYTES {
-        url = url.replace(cursor, b"", -1)
-        scheme = scheme.replace(cursor, b"", -1)
+        url = url.replace(cursor, b"")
+        scheme = scheme.replace(cursor, b"")
     }
 
     var idx = url.find(b":")
@@ -156,7 +156,7 @@ pub func parse(url, scheme="", fragments=true) {
     }
 
     if fragments && b"#" in url {
-        url = url.split(b"#", 1)
+        url = url.split(b"#", splits=1)
         if len(url) > 1 {
             url, frags = url
         } else {
@@ -165,7 +165,7 @@ pub func parse(url, scheme="", fragments=true) {
     }
 
     if b"?" in url {
-        url = url.split(b"?", 1)
+        url = url.split(b"?", splits=1)
         if len(url) > 1 {
             url, query = url
         } else {
@@ -214,9 +214,9 @@ func parse_uinfo(netloc) {
     var username = nil
     var password = nil
 
-    var uinfo = netloc.split(b"@", 1)
+    var uinfo = netloc.split(b"@", splits=1)
     if len(uinfo) > 1 {
-        uinfo = uinfo[0].split(b":", 1)
+        uinfo = uinfo[0].split(b":", splits=1)
         if len(uinfo) > 1 {
             username, password = uinfo
         } else {
@@ -267,7 +267,7 @@ pub func quote_plus(str, safe=b" ") {
         - Returns: Quoted string.
     */
 
-    return quote(str, safe=safe).replace(" ", "+", -1)
+    return quote(str, safe=safe).replace(" ", "+")
 }
 
 func quoter(safe) {
@@ -307,7 +307,7 @@ pub func unquote(str) {
             return str
         }
 
-        return String::unescape(str.replace("%", "\\x", -1))
+        return String::unescape(str.replace("%", "\\x"))
     } elif !typeof(str, Bytes) {
         panic INPUT_ERROR
     }
@@ -316,7 +316,7 @@ pub func unquote(str) {
         return str.tostr()
     }
 
-    return String::unescape(str.replace(b"%", b"\\x", -1))
+    return String::unescape(str.replace(b"%", b"\\x"))
 }
 
 pub func unquote_plus(str) {
@@ -328,10 +328,10 @@ pub func unquote_plus(str) {
     */
 
     if typeof(str, String) && str.kind == @ascii {
-        return str.replace("+", " ", -1) |> unquote
+        return str.replace("+", " ") |> unquote
     } elif !typeof(str, Bytes) {
         panic INPUT_ERROR
     }
 
-    return str.replace(b"+", b" ", -1) |> unquote
+    return str.replace(b"+", b" ") |> unquote
 }

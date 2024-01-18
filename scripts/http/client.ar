@@ -502,7 +502,7 @@ trait ServerResponse : Response {
             panic utils.HTTPError("status line too long")
         }
 
-        line = line.splitws(2)
+        line = line.splitws(splits=2)
 
         var version, status, reason
 

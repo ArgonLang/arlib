@@ -47,7 +47,7 @@ func Args2OSSpec(args) {
         return args
     }
 
-    return args.splitws(-1)
+    return args.splitws()
 }
 
 func CheckPipe(pipe) {

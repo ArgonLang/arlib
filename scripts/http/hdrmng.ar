@@ -53,7 +53,7 @@ pub struct HeadersManager {
                 break
             }
 
-            line = line.split(b":", 1)
+            line = line.split(b":", splits=1)
             if len(line) < 2 {
                 panic HTTPError("invalid header", value=line)
             }

@@ -184,7 +184,7 @@ pub struct IniParser {
 
     pub func get_section(self, name) {
         if !self.no_nested_section {
-            var subs = name.split(self.section_separator, -1)
+            var subs = name.split(self.section_separator)
             var section = self.main
 
             if section == nil {
@@ -252,7 +252,7 @@ pub struct IniParser {
 
     func parse_section(self, section) {
         if !self.no_nested_section {
-            var subs = section.split(self.section_separator, -1)
+            var subs = section.split(self.section_separator)
             var first = true
 
             for var cursor of subs {
