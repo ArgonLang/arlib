@@ -2,11 +2,6 @@
 //
 // Licensed under the Apache License v2.0
 
-#include <openssl/bio.h>
-#include <openssl/err.h>
-#include <openssl/ssl.h>
-#include <openssl/x509v3.h>
-
 #include <argon/vm/runtime.h>
 #include <argon/vm/io/io.h>
 #include <argon/vm/loop/evloop.h>
@@ -15,6 +10,11 @@
 #include <argon/vm/datatype/nil.h>
 
 #include <ssl/ssl.h>
+
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
+#include <openssl/x509v3.h>
 
 #undef ERROR
 
