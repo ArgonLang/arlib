@@ -234,6 +234,18 @@ pub func each(fn, enum) {
     }
 }
 
+pub func enumerate(enum, start=0) {
+    /*
+        Adds a counter to each element in iterable and yields it.
+
+        - Parameter enum: Enumerable object.
+    */
+
+    for var itm of enum {
+        yield (start++, itm)
+    }
+}
+
 pub func fibgen(n1, n2) {
     var nth
 
