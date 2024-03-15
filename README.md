@@ -31,6 +31,7 @@ In any case, if necessary, it is possible to use a customized version for a give
 - Numeric and math-related functions:
   - random -- Generate pseudo-random numbers
 - Operating system services:
-  - subprocess — Initiating and managing processes
+  - ospath -- Common pathname manipulations
+  - subprocess -- Initiating and managing processes
 - Text processing:
   - regex -- Perl-like regex support

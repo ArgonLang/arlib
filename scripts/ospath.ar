@@ -1,0 +1,305 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+*/
+
+import "os"
+import "runtime"
+
+from "error" import ValueError
+
+pub func isabs(path) {
+    /*
+        Determine whether the given path is an absolute pathname.
+
+        - Parameter path: The pathname to be checked.
+        - Returns: True if the path is an absolute pathname, false otherwise.
+    */
+
+    sep := os.pathsep
+
+    if typeof(path, Bytes) {
+        sep = Bytes(sep)
+    }
+
+    if runtime.os == "windows" {
+        csep := ":\\"
+        usep := "/"
+
+        if typeof(path, Bytes) {
+            csep = Bytes(csep)
+            usep = Bytes(usep)
+        }
+
+        path = path[:3].replace(usep, sep)
+
+        if path.startswith(sep * 2) || path[1:].startswith(csep) {
+            return true
+        }
+
+        return false
+    }
+
+    return path.startswith(sep)
+}
+
+pub func abspath(path) {
+    /*
+        Return a normalized absolute version of the pathname.
+
+        - Parameter path: The pathname to be normalized.
+        - Returns: The normalized version of the pathname.
+    */
+
+    if !isabs(path) {
+        if typeof(path, Bytes) {
+            return os.getcwd()
+                |> Bytes
+                |> join(path)
+                |> normalize
+        }
+
+        return os.getcwd()
+            |> join(path)
+            |> normalize
+    }
+
+    return normalize(path)
+}
+
+pub func basename(path) {
+    /*
+        Return the base name of the pathname.
+
+        - Parameter path: The pathname.
+        - Returns: The base name of the pathname.
+    */
+
+    return split(path)[1]
+}
+
+pub func dirname(path) {
+    /*
+        Return the directory name of the pathname.
+
+        - Parameter path: The pathname.
+        - Returns: The directory name of the pathname.
+    */
+
+    return split(path)[0]
+}
+
+pub func split(path) {
+    /*
+        Split the pathname into a tuple (head, tail), where tail is the last pathname component.
+
+        - Parameter path: The pathname to be split.
+        - Returns: A tuple representing head and tail of the specified pathname.
+    */
+
+    sep := os.pathsep
+
+    if typeof(path, Bytes) {
+        sep = Bytes(sep)
+    }
+
+    idx := path.rfind(sep) + 1
+
+    head, tail := path[:idx], path[idx:]
+    if head && head != sep * len(head) {
+        head = head.rtrim(chars=sep)
+    }
+
+    return head, tail
+}
+
+pub func join(base, ...comps) {
+    /*
+        Join one or more path segments.
+
+        - Parameters:
+          - base: The base pathname.
+          - ...comps: Other path components.
+        - Returns: A string representing the concatenated path components.
+    */
+
+    sep := os.pathsep
+
+    if typeof(base, Bytes) {
+        sep = Bytes(os.pathsep)
+    }
+
+    path := base
+
+    if !comps {
+        path[:0] + sep
+    }
+
+    for var comp of comps {
+        if comp.startswith(sep) {
+            path = comp
+        } elif !path || path.endswith(sep) {
+            path += comp
+        } else {
+            path += sep + comp
+        }
+    }
+
+    return path
+}
+
+pub func normalize(path) {
+    /*
+        Normalize a path by eliminating double slashes, etc.
+
+        - Parameter path: The pathname to be normalized.
+        - Returns: The normalized version of the pathname.
+    */
+
+    sep := os.pathsep
+    empty := ""
+    dot := "."
+    dotdot := ".."
+
+    if typeof(path, Bytes) {
+        sep = Bytes(sep)
+        empty = b""
+        dot = b"."
+        dotdot = b".."
+    }
+
+    if !path {
+        return dot
+    }
+
+    var slash
+
+    _, slash, path = splitroot(path)
+    components := path.split(sep)
+
+    npath := []
+
+    for var comp of components {
+        if comp in (empty, dot) {
+            continue
+        }
+
+        if comp != dotdot || (!slash && !npath) || (npath && npath[-1] == dotdot) {
+            npath.append(comp)
+        } elif npath {
+            npath.pop()
+        }
+    }
+
+    return slash + sep.join(npath)
+}
+
+pub func normcase(path) {
+    /*
+        Normalize the case of the pathname.
+
+        - Parameter path: The pathname to be normalized.
+        - Returns: The normalized version of the pathname.
+    */
+
+    if runtime.os != "windows" {
+        return path
+    }
+
+    sep := os.pathsep
+    usep := "/"
+
+    if typeof(path, Bytes) {
+        sep = Bytes(sep)
+        usep = Bytes(usep)
+    }
+
+    return path.replace(usep, sep).lower()
+}
+
+pub func splitroot(path) {
+    /*
+        Split the pathname into a 3-item tuple (drive, root, tail).
+
+        - Parameter path: The pathname to be split.
+        - Returns: A tuple representing drive, root, and tail of the specified pathname.
+    */
+
+    sep := os.pathsep
+    empty := ""
+
+    if typeof(path, Bytes) {
+        sep = Bytes(sep)
+        empty = b""
+    }
+
+    if path[:1] != sep {
+        # Relative path
+        return empty, empty, path
+    } elif path[1:2] != sep || path[2:3] == sep {
+        # Absolute path
+        return empty, sep, path[1:]
+    }
+
+    return empty, path[:2], path[2:]
+}
+
+pub func commonpath(...paths) {
+	/*
+        Given a sequence of paths, return the longest common sub-path.
+
+        - Parameter ...paths: A list of pathnames.
+        - Returns: A string representing the longest common sub-path in the specified list.
+    */
+
+    if !paths {
+        panic ValueError("commonpath() paths is an empty sequence")
+    }
+
+    sep := os.pathsep
+    dot := "."
+    if typeof(paths[0], Bytes) {
+        sep = Bytes(sep)
+        dot = b"."
+    }
+
+    # Check absolute and relative paths
+    abs := isabs(paths[0])
+    for var path of paths {
+        if isabs(path) ^ abs {
+            panic ValueError("can't mix absolute and relative paths")
+        }
+    }
+
+    split_paths := []
+    for var path of paths {
+        split_paths.append(path.split(sep))
+    }
+
+    ss_paths := []
+    for var path of split_paths {
+        tmp := []
+
+        for var c of path {
+            if c && c != dot {
+                tmp.append(c)
+            }
+        }
+
+        ss_paths.append(tmp)
+    }
+
+    s_min := ss_paths.min()
+    s_max := ss_paths.max()
+    common := s_min
+    
+    for var i = 0; i < len(s_min); i += 1 {
+        if s_min[i] != s_max[i] {
+            common = s_min[:i]
+            break
+        }
+    }
+
+    return (abs ? sep : sep[:0]) + sep.join(common)
+}
