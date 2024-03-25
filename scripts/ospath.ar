@@ -9,6 +9,8 @@ import "runtime"
 
 from "error" import ValueError
 
+pub let __version = "@PROJECT_VERSION@"
+
 pub func isabs(path) {
     /*
         Determine whether the given path is an absolute pathname.
@@ -227,12 +229,20 @@ pub func splitroot(path) {
     */
 
     sep := os.pathsep
+    altsep := "\\"
     empty := ""
+
+    if runtime.os == "windows" {
+        altsep = "/"
+    }
 
     if typeof(path, Bytes) {
         sep = Bytes(sep)
+        altsep = Bytes(altsep)
         empty = b""
     }
+
+    path = path.replace(altsep, sep)
 
     if path[:1] != sep {
         # Relative path
