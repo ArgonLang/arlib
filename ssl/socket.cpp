@@ -4,7 +4,7 @@
 
 #include <argon/vm/runtime.h>
 #include <argon/vm/io/io.h>
-#include <argon/vm/loop/evloop.h>
+#include <argon/vm/loop2/evloop.h>
 
 #include <argon/vm/datatype/boolean.h>
 #include <argon/vm/datatype/nil.h>
@@ -19,7 +19,7 @@
 #undef ERROR
 
 using namespace argon::vm::datatype;
-using namespace argon::vm::loop;
+using namespace argon::vm::loop2;
 using namespace argon::vm::io;
 using namespace arlib::ssl;
 

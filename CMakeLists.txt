@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(ARLib VERSION 0.2.0)
+project(ARLib VERSION 0.3.0)
 
 set(BASE_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 
