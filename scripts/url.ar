@@ -19,6 +19,8 @@ pub let __version = "@PROJECT_VERSION@"
 pub let SCHEME_VALID_BYTES = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-."
 pub let SCHEME_WITH_PARAMS = [b"", b"ftp", b"hdl", b"prospero", b"http", b"https", b"imap", b"shttp", b"rtsp", b"rtspu", b"sip", b"sips", b"mms", b"sftp", b"tel"]
 
+pub let USES_NETLOC = ["", "file", "ftp", "git", "git+ssh", "gopher", "http", "https", "imap", "itms-services", "mms", "nfs", "nntp", "prospero", "rsync", "rtsp", "rtsps", "rtspu", "sftp", "shttp", "snews", "svn", "svn+ssh", "telnet", "wais", "ws", "wss"]
+
 pub let ALWAYS_SAFE_BYTES = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-~"
 pub let UNSAFE_URL_BYTES = [b"\t", b"\r", b"\n"]
 pub let C0_CONTROL_OR_SPACE = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f "
@@ -95,6 +97,92 @@ pub func compose(components) {
     var fragments = components.get("fragments").unwrap_or("")
 
     return scheme + netloc + path + params + (query ? "?%s" % query : "") + (fragments ? "#%s" % fragments : "")
+}
+
+pub func join(base, url, fragments=true) {
+    /*
+        Join a base URL and a possibly relative URL to form an absolute interpretation of the latter.
+
+        - Parameters:
+          - base (String): The base URL to which the relative URL will be joined. This should be a valid absolute URL.
+          - url (String): The relative or absolute URL to be joined with the base URL. If this is an absolute URL, the base URL is ignored.
+        - KWParameters:
+          - fragments: If false, fragment identifiers are not recognized.
+        - Returns: A string containing the URL constructed from the base and url parameters.
+    */
+
+    if !base {
+        return url
+    }
+
+    if !url {
+        return base
+    }
+
+    base, url = coerce_args(base, url)
+    b_comp := parse(base, fragments=fragments)
+    bscheme := b_comp["scheme"]
+    bpath := b_comp["path"]
+
+    u_comp := parse(url, scheme=b_comp["scheme"], fragments=fragments)
+    uscheme := u_comp["scheme"]
+    unetloc := u_comp["netloc"]
+    upath := u_comp["path"]
+    uparams := u_comp["params"]
+
+    if uscheme != bscheme {
+        return url
+    }
+
+    if uscheme in USES_NETLOC {
+        if unetloc {
+            return url
+        }
+
+        unetloc = b_comp["netloc"]
+    }
+
+    if !upath && !uparams {
+        query := u_comp["query"]
+        if !query {
+            query = b_comp["query"]
+        }
+
+        u_comp["netloc"] = unetloc
+        u_comp["path"] = b_comp["path"]
+        u_comp["params"] = b_comp["params"]
+        u_comp["query"] = query
+
+        return compose(u_comp)
+    }
+
+    base_parts := bpath.split("/")
+    segments := upath.split("/")
+
+    if upath[:1] != "/" {
+        segments = base_parts + segments
+    }
+
+    resolved := []
+
+    for var seg of segments {
+        if seg == ".." {
+            resolved.pop()
+        } elif seg == "." {
+            continue
+        } else {
+            resolved.append(seg)
+        }
+    }
+
+    if segments[-1] in (".", "..") {
+        resolved.append("")
+    }
+
+    u_comp["netloc"] = unetloc
+    u_comp["path"] = resolved ? "/".join(resolved) : "/"
+
+    return compose(u_comp)
 }
 
 pub func parse(url, scheme="", fragments=true) {
