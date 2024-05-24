@@ -6,7 +6,7 @@
 #define ARLIB_SSL_SSL_H_
 
 #include <argon/vm/datatype/arobject.h>
-#include <argon/vm/datatype/tuple.h>
+#include <argon/vm/datatype/list.h>
 
 #include <argon/vm/io/socket/socket.h>
 
@@ -94,7 +94,7 @@ namespace arlib::ssl {
     argon::vm::datatype::Error *SSLErrorNew();
 
 #ifdef _ARGON_PLATFORM_WINDOWS
-    argon::vm::datatype::Tuple *EnumWindowsCert(const char *store_name);
+    argon::vm::datatype::List *EnumWindowsCert(const char *store_name);
 #endif
 
     SSLContext *SSLContextNew(SSLProtocol protocol);

@@ -137,20 +137,16 @@ static ArObject *KeyUsage(PCCERT_CONTEXT cert, DWORD flags) {
     return ret;
 }
 
-Tuple *arlib::ssl::EnumWindowsCert(const char *store_name) {
+List *arlib::ssl::EnumWindowsCert(const char *store_name) {
     PCCERT_CONTEXT pcert = nullptr;
     HCERTSTORE my_store;
-    ArObject *cert = nullptr;
-    ArObject *encoding = nullptr;
-    ArObject *keyusage = nullptr;
-    Tuple *tuple = nullptr;
-    Set *set;
+    List *ret;
 
-    if ((set = SetNew()) == nullptr)
+    if ((ret = ListNew()) == nullptr)
         return nullptr;
 
     if ((my_store = CollectCertificates(store_name)) == nullptr) {
-        Release(set);
+        Release(ret);
 
         ErrorFromWinErr();
 
@@ -158,56 +154,64 @@ Tuple *arlib::ssl::EnumWindowsCert(const char *store_name) {
     }
 
     while ((pcert = CertEnumCertificatesInStore(my_store, pcert))) {
+        ArObject *cert;
+        ArObject *encoding;
+        ArObject *keyusage;
+
         if ((cert = (ArObject *) BytesNew(pcert->pbCertEncoded, pcert->cbCertEncoded, true)) == nullptr)
             break;
 
-        if ((encoding = EncodingTypes(pcert->dwCertEncodingType)) == nullptr)
-            break;
-
-        if ((keyusage = KeyUsage(pcert, CERT_FIND_PROP_ONLY_ENHKEY_USAGE_FLAG)) == (ArObject *) True)
-            keyusage = KeyUsage(pcert, CERT_FIND_EXT_ONLY_ENHKEY_USAGE_FLAG);
-
-        if (keyusage == nullptr)
-            break;
-
-        tuple = TupleNew("ooo", cert, encoding, keyusage);
-
-        Release(&cert);
-        Release(&encoding);
-        Release(&keyusage);
-
-        if (tuple == nullptr)
-            break;
-
-        if (!SetAdd(set, (ArObject *) tuple)) {
-            Release((ArObject **) &tuple);
+        if ((encoding = EncodingTypes(pcert->dwCertEncodingType)) == nullptr) {
+            Release(cert);
 
             break;
         }
 
-        Release((ArObject **) &tuple);
+        if ((keyusage = KeyUsage(pcert, CERT_FIND_PROP_ONLY_ENHKEY_USAGE_FLAG)) == (ArObject *) True)
+            keyusage = KeyUsage(pcert, CERT_FIND_EXT_ONLY_ENHKEY_USAGE_FLAG);
+
+        if (keyusage == nullptr) {
+            Release(cert);
+            Release(encoding);
+
+            break;
+        }
+
+        auto *tuple = TupleNew("ooo", cert, encoding, keyusage);
+
+        Release(cert);
+        Release(encoding);
+        Release(keyusage);
+
+        if (tuple == nullptr)
+            break;
+
+        if (!ListAppend(ret, (ArObject *) tuple)) {
+            Release((ArObject *) tuple);
+            Release(ret);
+
+            CertFreeCertificateContext(pcert);
+
+            if (!CertCloseStore(my_store, CERT_CLOSE_STORE_FORCE_FLAG))
+                ErrorFromWinErr();
+
+            return nullptr;
+        }
+
+        Release((ArObject *) tuple);
     }
 
     if (pcert != nullptr)
         CertFreeCertificateContext(pcert);
 
-    Release(cert);
-    Release(encoding);
-    Release(keyusage);
-    Release(tuple);
-
     if (!CertCloseStore(my_store, CERT_CLOSE_STORE_FORCE_FLAG)) {
-        Release(set);
+        Release(ret);
 
         ErrorFromWinErr();
         return nullptr;
     }
 
-    tuple = TupleNew((ArObject *) set);
-
-    Release(set);
-
-    return tuple;
+    return ret;
 }
 
 #endif
