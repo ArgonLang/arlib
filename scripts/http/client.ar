@@ -561,6 +561,10 @@ struct HTTPResponse impl Reader, ServerResponse {
         return self.headers.raw()
     }
 
+    pub func getheaders_raw(self) {
+        return self.headers.to_bytes()
+    }
+
     pub func process(self, req_method) {
         var version, status, reason
 
