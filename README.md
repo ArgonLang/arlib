@@ -26,6 +26,8 @@ In any case, if necessary, it is possible to use a customized version for a give
   - url -- URL handling module
 - Language utilities:
   - argparse -- Parser for command-line options
+- Concurrent Execution:
+  - sync -- Utilities and primitives for synchronization and concurrency control
 - Networking and IC:
   - ssl -- SSL/TLS wrapper for socket objects
 - Numeric and math-related functions:
