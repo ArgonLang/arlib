@@ -2,22 +2,91 @@
  * This source file is part of the Argon project.
  *
  * Licensed under the Apache License v2.0
+ *
+ * This module provides a high-level interface for regular expression operations in Argon.
+ * It wraps the functionality of the underlying _regex module, offering convenient functions
+ * for common regex tasks such as finding matches, replacing text, and splitting strings.
+ *
+ * The module simplifies regex operations by automatically creating Pattern objects,
+ * allowing users to work directly with string patterns in most cases.
 */
 
 from "regex/_regex" import *
 
 pub func findall(data, pattern) {
+    /*
+        Finds all non-overlapping matches of a pattern in a string.
+
+        Example:
+        matches := findall("abc123def456", r#"\d+"#)
+        # Result: ["123", "456"]
+
+        - Parameters:
+           - data: The string to search in.
+           - pattern: The regular expression pattern to search for.
+        - Returns: A list of all matching substrings.
+
+        See Also:
+        - find: For finding the first match only.
+    */
+
     return Pattern(pattern).findall(data)
 }
 
 pub func find(data, pattern) {
+    /*
+        Finds the first match of a pattern in a string.
+
+        Example:
+        match := find("Hello, World!", r#"\w+"#)
+        # Result: ["Hello"]
+
+        - Parameters:
+           - data: The string to search in.
+           - pattern: The regular expression pattern to search for.
+        - Returns: A list with the first matching substring, or nil if no match is found.
+
+        See Also:
+        - findall: For finding all matches.
+    */
+
     return Pattern(pattern).find(data)
 }
 
 pub func replace(data, replace, pattern) {
+    /*
+        Replaces all occurrences of a pattern in a string with a replacement string.
+
+        Example:
+        result := replace("Hello, World!", "Hi", "Hello")
+        # Result: "Hi, World!"
+
+        - Parameters:
+           - data: The string to perform replacements on.
+           - replace: The string to replace matches with.
+           - pattern: The regular expression pattern to match.
+        - Returns: A new string with all replacements made.
+
+        See Also:
+        - Pattern.replace: For more advanced replacement options.
+    */
+
     return Pattern(pattern).replace(data, replace)
 }
 
 pub func split(data, pattern) {
+    /*
+        Splits a string by occurrences of a pattern.
+
+        Example:
+        parts := split("a,b,c", ",")
+        # Result: ["a", "b", "c"]
+
+        - Parameters:
+           - data: The string to split.
+           - pattern: The regular expression pattern to split on.
+        - Returns: A list of substrings.
+    */
+
     return Pattern(pattern).split(data)
 }

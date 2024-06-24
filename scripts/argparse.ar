@@ -102,7 +102,7 @@ struct Argument {
 
     pub var choices
     pub var help
-    
+
     pub var dest
     pub var action
     pub var nargs
@@ -129,15 +129,21 @@ pub struct Argparse {
         /*
             Creates a new Argparser object for parsing command-line arguments.
 
+            This function initializes an Argparse object with the specified configuration,
+            setting up the basic structure for defining and parsing command-line arguments.
+
+            Example:
+            parser := Argparse(name="myapp", description="A sample application", add_help=true)
+
             - KWParameters:
-              - name:          Name of the program.
-              - description:   A brief description of the program.
-              - epilog:        Additional text to display at the end of the help message.
-              - add_help:      Whether to add a help option (default: true).
-              - exit_on_error: Whether to exit the program on argument parsing errors (default: true).
-              - helper:        An object used to format the help message (default: APDefaultHelper).
-              - prefix:        The prefix used for command-line switches (default: DEFAULT_SWITCH).
-            - Returns:         A new Arparser object for parsing command-line arguments.
+               - name: Name of the program (default=nil, uses runtime.args[0] if not provided)
+               - description: A brief description of the program (default="").
+               - epilog: Additional text to display at the end of the help message (default="").
+               - add_help: Whether to add a help option (default=true).
+               - exit_on_error: Whether to exit the program on argument parsing errors (default=true).
+               - helper: An object used to format the help message (default=APDefaultHelper()).
+               - prefix: The prefix used for command-line switches (default=DEFAULT_SWITCH).
+            - Returns: A new Argparser object for parsing command-line arguments.
         */
 
         if !name && runtime.args {
@@ -173,20 +179,27 @@ pub struct Argparse {
 
     pub func addarg(self, name, action=@store, choices=, default=, dest=, help=, nargs=, required=false, ...aliases) {
         /*
-            Define how a single command argument should be parsed.
+            Defines how a single command argument should be parsed.
 
-            - Parameters:
-              - name:       Name or option, e.g.: filename, -f.
-              - ...aliases: Option aliases, e.g.: --filename.
+            This method adds a new argument to the Argparse object, specifying its behavior
+            and properties. It allows for flexible configuration of command-line options.
+
+            Example:
+            parser.addarg("-f", "--file", help="input file", required=true)
+            parser.addarg("-n", "--number", help="a number", default=0)
+
+            - parameters:
+               - name: Name or option, e.g.: filename, -f.
+               - aliases: Option aliases, e.g.: --filename.
             - KWParameters:
-              - action:   Action to be taken when this argument is encountered.
-              - choices:  Sequence of the allowable values for the argument.
-              - default:  The value produced if the argument is absent.
-              - dest:     Name of the attribute to be added to the object returned by parse().
-              - help:     A brief description of what the argument does.
-              - nargs:    Number of command arguments that should be consumed.
-              - required: Indicating whether the command-line option can be omitted (default: yes).
-            - Returns:    Argparse itself.
+               - action: Action to be taken when this argument is encountered (default=@store).
+               - choices: Sequence of the allowable values for the argument.
+               - default: The value produced if the argument is absent.
+               - dest: Name of the attribute to be added to the object returned by parse().
+               - help: A brief description of what the argument does.
+               - nargs: Number of command arguments that should be consumed.
+               - required: Indicating whether the command-line option can be omitted (default=false).
+            - Returns: The Argparse object itself for method chaining.
         */
 
         arg := Argument@(
@@ -225,11 +238,23 @@ pub struct Argparse {
 
     pub func parse(self, args=) {
         /*
-            Parse the command line and return a populated dictionary.
+            Parses the command line and returns a populated dictionary.
+
+            This method processes the provided command-line arguments (or runtime.args by default)
+            according to the argument definitions set up using addarg. It returns a dictionary
+            containing the parsed values.
+
+            Example:
+            parsed_args := parser.parse()
+            if parsed_args {
+                io.print("File:", parsed_args["file"])
+                io.print("Number:", parsed_args["number"])
+            }
 
             - KWParameters:
-              - args:  List of strings to parse. The default is 'runtime.args'.
-            - Returns: Return a populated dictionary with values obtained by parsing the command line.
+               - args: List of strings to parse (default=runtime.args[1:]).
+            - Returns: A dictionary populated with values obtained by parsing the command line.
+            - Panics: Raises ArgparseError for various parsing errors if exit_on_error is false.
         */
 
         if !args {

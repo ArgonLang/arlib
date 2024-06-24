@@ -21,6 +21,19 @@ if runtime.os == "windows" {
     pub let WINDOWS_CERT_STORES = ["CA", "ROOT"]
 
     pub func load_windows_certs(context) {
+        /*
+            Loads trusted certificates from Windows certificate stores into an SSL context.
+
+            This function is specific to Windows and populates the given SSL context
+            with certificates from the specified Windows certificate stores.
+
+            Example:
+            context := SSLContext(PROTO_TLS)
+            load_windows_certs(context)
+
+            - Parameter context: The SSLContext to load the certificates into.
+        */
+
         var bundle = Bytes()
 
         for var store of WINDOWS_CERT_STORES {
@@ -41,12 +54,18 @@ DEFAULT_CONTEXT.load_paths_default()
 
 pub func connect(address, handshake=true) {
     /*
-        Make a secure TCP connection to an address.
+        Establishes a secure TCP connection to the specified address.
 
-        - Parameter address: IP/URL.
+        This function creates a TCP connection and wraps it with SSL/TLS
+        using the default SSL context.
+
+        Example:
+        ssl_socket := connect("example.com:443")
+
+        - Parameter address: The IP address or URL to connect to.
         - KWParameters:
-          - handshake: Perform handshake on connection established (default: true).
-        - Returns: SSLSocket
+           - handshake: Whether to perform the SSL handshake immediately (default=true).
+        - Returns: An SSLSocket object representing the secure connection.
     */
 
     var sock = socket.dial("tcp", address)

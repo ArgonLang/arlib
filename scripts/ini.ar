@@ -170,6 +170,17 @@ struct Section {
 }
 
 pub struct IniParser {
+    /*
+        Represents a parser for INI files.
+
+        This struct provides methods to read, parse, and manipulate INI-formatted data.
+        It supports nested sections (which can be disabled), empty keys, and custom section separators.
+
+        Example:
+        ini_parser := IniParser@()
+        ini_parser.read(file_content)
+    */
+
     var no_nested_section = false
     var no_empty_key = false
     var section_separator = "."
@@ -179,10 +190,40 @@ pub struct IniParser {
     var s_cur   # Current section
 
     pub func get(self, section, option, fallback) {
+        /*
+            Retrieves the value of a specific option within a section.
+
+            Example:
+            value := ini_parser.get("section1", "option1", "default_value")
+
+            - Parameters:
+               - section: The name of the section.
+               - option: The name of the option.
+               - fallback: The value to return if the option is not found.
+            - Returns: The value of the option if found, otherwise the fallback value.
+
+            See Also:
+            - get_section: For retrieving an entire section.
+            - has_option: For checking if an option exists.
+        */
         return (self.get_section(section)?.get_option(option)) ?: fallback
     }
 
     pub func get_section(self, name) {
+        /*
+            Retrieves a specific section from the INI structure.
+
+            Example:
+            section := ini_parser.get_section("section1.subsection")
+
+            - Parameter name: The name of the section (can be nested if nested sections are enabled).
+            - Returns: The Section object if found, otherwise nil.
+
+            See Also:
+            - get: For retrieving a specific option within a section.
+            - has_section: For checking if a section exists.
+        */
+
         if !self.no_nested_section {
             var subs = name.split(self.section_separator)
             var section = self.main
@@ -205,14 +246,57 @@ pub struct IniParser {
     }
 
     pub func get_options(self, section) {
+        /*
+             Retrieves all options within a specific section.
+
+             Example:
+             options := ini_parser.get_options("section1")
+
+             - Parameter section: The name of the section.
+             - Returns: An iterable of key-value pairs representing the options in the section, or nil if the section doesn't exist.
+
+             See Also:
+             - get: For retrieving a specific option.
+         */
+
         return self.get_section(section)?.get_options()
     }
 
     pub func has_option(self, section, name) {
+        /*
+            Checks if a specific option exists within a section.
+
+            Example:
+            exists := ini_parser.has_option("section1", "option1")
+
+            - Parameters:
+               - section: The name of the section.
+               - name: The name of the option.
+            - Returns: True if the option exists, false otherwise.
+
+            See Also:
+            - get: For retrieving the value of an option.
+            - has_section: For checking if a section exists.
+        */
+
         return self.get_section(section)?.get_option(name) != nil
     }
 
     pub func has_section(self, name) {
+        /*
+            Checks if a specific section exists in the INI structure.
+
+            Example:
+            exists := ini_parser.has_section("section1.subsection")
+
+            - Parameter name: The name of the section (can be nested if nested sections are enabled).
+            - Returns: True if the section exists, false otherwise.
+
+            See Also:
+            - get_section: For retrieving a section.
+            - has_option: For checking if an option exists within a section.
+        */
+
         return self.get_section(name) != nil
     }
 
@@ -272,6 +356,22 @@ pub struct IniParser {
     }
 
     pub func read(self, data) {
+        /*
+            Reads and parses INI-formatted data.
+
+            This method can handle data from various sources including strings, bytes, and file-like objects.
+
+            Example:
+            ini_parser := IniParser@()
+            ini_parser.read(file_content)
+
+            - Parameter data: The INI-formatted data to parse (can be a string, bytes, or file-like object).
+            - Panics: Raises TypeError if the input type is not supported.
+
+            See Also:
+            - write: For converting the parsed data back to INI format.
+        */
+
         if implements(data, io.LineReader) {
             return self.read_file(data)
         }
@@ -325,6 +425,18 @@ pub struct IniParser {
     }
 
     pub func to_dict(self) {
+        /*
+            Converts the parsed INI structure to a dictionary.
+
+            Example:
+            dict_representation := ini_parser.to_dict()
+
+            - Returns: A dictionary representation of the INI structure.
+
+            See Also:
+            - write: For converting the parsed data to INI format.
+        */
+
         if self.main == nil {
             return {}
         }
@@ -339,6 +451,19 @@ pub struct IniParser {
     }
 
     pub func write(self) {
+        /*
+            Converts the parsed INI structure back to INI format.
+
+            Example:
+            ini_content := ini_parser.write()
+
+            - Returns: A bytes object containing the INI-formatted data.
+
+            See Also:
+            - to_dict: For converting the parsed data to a dictionary.
+            - read: For parsing INI-formatted data.
+        */
+
         return self.main.write(nil)
     }
 }

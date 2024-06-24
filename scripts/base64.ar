@@ -16,12 +16,28 @@ pub let BASE64_TABLE = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012
 pub let BASE64_TABLE_URLSAFE = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 
 pub func b16encoder(table) {
+    /*
+        Creates a Base16 encoder function using the specified encoding table.
+
+        This function returns another function that can be used to encode data using Base16 encoding.
+
+        Example:
+        custom_encoder := b16encoder(b"0123456789ABCDEF")
+        encoded := custom_encoder(b"Hello, World!")
+
+        - Parameter table: The Base16 encoding table to use.
+        - Returns: A function that encodes bytes-like objects using Base16 encoding.
+
+        See Also:
+        - b16decoder: For creating a corresponding Base16 decoder function.
+    */
+
     return (data) => {
         /*
-            Encode the bytes-like object data using Base16 and return a frozen bytes object.
+            Encodes the given bytes-like object using Base16 encoding.
 
-            - Parameter data: bytes-like object to encode.
-            - Returns: Frozen bytes object.
+            - Parameter data: The bytes-like object to encode.
+            - Returns: A frozen bytes object containing the Base16 encoded data.
         */
 
         var output = Bytes(len(data) * 2)
@@ -37,14 +53,30 @@ pub func b16encoder(table) {
 }
 
 pub func b16decoder(table) {
+    /*
+        Creates a Base16 decoder function using the specified encoding table.
+
+        This function returns another function that can be used to decode Base16 encoded data.
+
+        Example:
+        custom_decoder := b16decoder(b"0123456789ABCDEF")
+        decoded := custom_decoder(b"48656C6C6F2C20576F726C6421")
+
+        - Parameter table: The Base16 encoding table to use.
+        - Returns: A function that decodes Base16 encoded bytes-like objects.
+
+        See Also:
+        - b16encoder: For creating a corresponding Base16 encoder function.
+    */
+
     var rtable
 
     return (data) => {
         /*
-            Decode the Base16 encoded bytes-like object.
+            Decodes the given Base16 encoded bytes-like object.
 
-            - Parameter data: bytes-like object to decode.
-            - Returns: Frozen bytes object.
+            - Parameter data: The Base16 encoded bytes-like object to decode.
+            - Returns: A frozen bytes object containing the decoded data.
         */
 
         var output = Bytes(len(data) // 2)
@@ -65,12 +97,28 @@ pub func b16decoder(table) {
 }
 
 pub func b32encoder(table) {
+    /*
+        Creates a Base32 encoder function using the specified encoding table.
+
+        This function returns another function that can be used to encode data using Base32 encoding.
+
+        Example:
+        custom_encoder := b32encoder(BASE32_TABLE)
+        encoded := custom_encoder(b"Hello, World!")
+
+        - Parameter table: The Base32 encoding table to use.
+        - Returns: A function that encodes bytes-like objects using Base32 encoding.
+
+        See Also:
+        - b32decoder: For creating a corresponding Base32 decoder function.
+    */
+
     return (data) => {
         /*
-            Encode the bytes-like object data using Base32 and return a frozen bytes object.
+            Encodes the given bytes-like object using Base32 encoding.
 
-            - Parameter data: bytes-like object to encode.
-            - Returns: Frozen bytes object.
+            - Parameter data: The bytes-like object to encode.
+            - Returns: A frozen bytes object containing the Base32 encoded data.
         */
 
         var output = data 
@@ -106,14 +154,30 @@ pub func b32encoder(table) {
 }
 
 pub func b32decoder(table) {
+    /*
+        Creates a Base32 decoder function using the specified encoding table.
+
+        This function returns another function that can be used to decode Base32 encoded data.
+
+        Example:
+        custom_decoder := b32decoder(BASE32_TABLE)
+        decoded := custom_decoder(b"JBSWY3DPEBLW64TMMQQQ====")
+
+        - Parameter table: The Base32 encoding table to use.
+        - Returns: A function that decodes Base32 encoded bytes-like objects.
+
+        See Also:
+        - b32encoder: For creating a corresponding Base32 encoder function.
+    */
+
     var rtable
 
     return (data) => {
         /*
-            Decode the Base32 encoded bytes-like object.
+            Decodes the given Base32 encoded bytes-like object.
 
-            - Parameter data: bytes-like object to decode.
-            - Returns: Frozen bytes object.
+            - Parameter data: The Base32 encoded bytes-like object to decode.
+            - Returns: A frozen bytes object containing the decoded data.
         */
 
         var output = Bytes(compute_dlen(table, data, 5))
@@ -151,12 +215,28 @@ pub func b32decoder(table) {
 }
 
 pub func b64encoder(table) {
+    /*
+        Creates a Base64 encoder function using the specified encoding table.
+
+        This function returns another function that can be used to encode data using Base64 encoding.
+
+        Example:
+        custom_encoder := b64encoder(BASE64_TABLE)
+        encoded := custom_encoder(b"Hello, World!")
+
+        - Parameter table: The Base64 encoding table to use.
+        - Returns: A function that encodes bytes-like objects using Base64 encoding.
+
+        See Also:
+        - b64decoder: For creating a corresponding Base64 decoder function.
+    */
+
     return (data) => {
         /*
-            Encode the bytes-like object data using Base64 and return a frozen bytes object.
+            Encodes the given bytes-like object using Base64 encoding.
 
-            - Parameter data: bytes-like object to encode.
-            - Returns: Frozen bytes object.
+            - Parameter data: The bytes-like object to encode.
+            - Returns: A frozen bytes object containing the Base64 encoded data.
         */
 
         var output = Bytes(compute_len64(data, table))
@@ -190,14 +270,30 @@ pub func b64encoder(table) {
 }
 
 pub func b64decoder(table) {
+    /*
+        Creates a Base64 decoder function using the specified encoding table.
+
+        This function returns another function that can be used to decode Base64 encoded data.
+
+        Example:
+        custom_decoder := b64decoder(BASE64_TABLE)
+        decoded := custom_decoder(b"SGVsbG8sIFdvcmxkIQ==")
+
+        - Parameter table: The Base64 encoding table to use.
+        - Returns: A function that decodes Base64 encoded bytes-like objects.
+
+        See Also:
+        - b64encoder: For creating a corresponding Base64 encoder function.
+    */
+
     var rtable
 
     return (data) => {
         /*
-            Decode the Base64 encoded bytes-like object.
+            Decodes the given Base64 encoded bytes-like object.
 
-            - Parameter data: bytes-like object to decode.
-            - Returns: Frozen bytes object.
+            - Parameter data: The Base64 encoded bytes-like object to decode.
+            - Returns: A frozen bytes object containing the decoded data.
         */
 
         var dlength = len(data)
@@ -277,7 +373,7 @@ func padding(buffer, index, symbol, times) {
     return buffer
 }
 
-pub func reverse_table(table) {
+func reverse_table(table) {
     var rtable = Bytes(255)
     var index = 0
 

@@ -75,11 +75,20 @@ func CheckPipe(pipe) {
 
 pub async func asyncrun(path, &kwargs) {
     /*
-        This function enables the asynchronous execution of a process, returning the process's exit code once its execution is complete.
+        Executes a process asynchronously and returns its exit code upon completion.
+
+        This function allows for the non-blocking execution of a process, returning the
+        process's exit code once it has finished running.
+
+        Example:
+        exit_code := asyncrun("/bin/ls", args=["-l"])
 
         - Parameter path: The path of the process to execute.
         - KWParameters: The named arguments that will be passed to the Process constructor.
         - Returns: The process exit code.
+
+        See Also:
+        - Process: For more detailed control over process execution.
     */
 
 	proc := Process(path, &kwargs)
@@ -100,25 +109,26 @@ pub struct Process impl io.Reader, io.Writer {
 	    /*
             Creates a new Process object associated with the newly created process.
 
-            The Process function supports various options for defining stdin, stdout, or stderr.
-            Specifically, you can pass a File object, or a list/tuple containing two File objects like [read, write].
-            Alternatively, you can use the '@pipe' atom to indicate the need for constructing and associating a pipe.
+            This function initializes a new process and provides various options for
+            controlling its input, output, and error streams.
 
-            Example of how to execute and control a process:
+            Example:
             p := Process("/bin/sh", stdin=@pipe, stdout=@pipe, stderr=@pipe)
             p.writeline("ls;exit")
-            p.read(-1)
+            output := p.read(-1)
 
             - Parameter path: The path of the process to execute.
             - KWParameters:
-              - args: The arguments used to launch the process. This may be a list or a string.
-              - envs: The environment variables used to launch the process.
-              - shell: If shell is True, the specified command will be executed through the shell.
-              - stdin: Indicates the standard input that the launched process should use.
-              - stdout: Indicates the standard output that the launched process should use.
-              - stderr: Indicates the standard error that the launched process should use.
+               - args: The arguments used to launch the process. This may be a list or a string.
+               - envs: The environment variables used to launch the process.
+               - shell: If shell is True, the specified command will be executed through the shell.
+               - stdin: Indicates the standard input that the launched process should use.
+               - stdout: Indicates the standard output that the launched process should use.
+               - stderr: Indicates the standard error that the launched process should use.
             - Returns: Process object associated with the newly created process.
-            - Remarks: Additional options can be specified based on the operating system in use.
+            - Panics: Raises TypeError if path is not a string or is empty.
+
+            Remarks: Additional options can be specified based on the operating system in use.
             For further details, refer to `os.execve` on POSIX systems and `os.createprocess` for Windows systems.
         */
 
@@ -167,13 +177,21 @@ pub struct Process impl io.Reader, io.Writer {
 
 		pub func wait(self, timeout=os.TIMEOUT_INFINITE) {
 		    /*
-		        Wait for child process to terminate.
+		        Waits for the child process to terminate.
 
-		        If the process does not terminate after timeout seconds, raise a TimeoutError.
+                This method blocks until the process terminates or the specified timeout is reached.
 
-		        - KWParameter:
-		          - timeout: Maximum duration(ms) within which the wait for the process to terminate should be constrained.
-		        - Returns: The process exit code.
+                Example:
+                p := Process("/bin/sleep", args=["5"])
+                exit_code := p.wait(timeout=10000)  # Wait for up to 10 seconds
+
+                - KWParameter:
+                   - timeout: Maximum duration (ms) within which the wait for the process to terminate should be constrained.
+                - Returns: The process exit code.
+                - Panics: Raises TimeoutError if the process does not terminate within the specified timeout.
+
+                See Also:
+                - poll: For non-blocking status check of the process.
 		    */
 
 			if self.exitcode {
@@ -271,13 +289,21 @@ pub struct Process impl io.Reader, io.Writer {
 
 		pub func wait(self, timeout=) {
             /*
-                Wait for child process to terminate.
+                Waits for the child process to terminate.
 
-                If the process does not terminate after timeout seconds, raise a TimeoutError.
+                This method blocks until the process terminates or the specified timeout is reached.
+
+                Example:
+                p := Process("/bin/sleep", args=["5"])
+                exit_code := p.wait(timeout=10000)  # Wait for up to 10 seconds
 
                 - KWParameter:
-                  - timeout: Maximum duration(ms) within which the wait for the process to terminate should be constrained.
+                   - timeout: Maximum duration (ms) within which the wait for the process to terminate should be constrained.
                 - Returns: The process exit code.
+                - Panics: Raises TimeoutError if the process does not terminate within the specified timeout.
+
+                See Also:
+                - poll: For non-blocking status check of the process.
             */
 
             if self.exitcode != nil {
@@ -318,9 +344,16 @@ pub struct Process impl io.Reader, io.Writer {
 
 	pub func kill(self) {
 	    /*
-	        Kills the child.
+	        Kills the child process.
 
-	        On POSIX OSs the function sends SIGKILL. On Windows kill() is an alias for terminate().
+            On POSIX OSs, this function sends SIGKILL. On Windows, kill() is an alias for terminate().
+
+            Example:
+            p := Process("/bin/sleep", args=["100"])
+            p.kill()
+
+            See Also:
+            - terminate: For a potentially less forceful way to stop the process.
 	    */
 
 		if runtime.os == "windows" {
@@ -332,9 +365,18 @@ pub struct Process impl io.Reader, io.Writer {
 
 	pub func poll(self) {
 	    /*
-	        Check if child process has terminated.
+	        Checks if the child process has terminated.
 
-	        - Returns: The exit code of the process if the process is terminated, otherwise returns nil.
+            This method provides a non-blocking way to check the status of the process.
+
+            Example:
+            p := Process("/bin/sleep", args=["5"])
+            status := p.poll() # Status will be nil if the process is still running, or the exit code if it has terminated
+
+            - Returns: The exit code of the process if it has terminated, otherwise returns nil.
+
+            See Also:
+            - wait: For blocking until the process terminates.
 	    */
 
 		if self.exitcode {
@@ -360,9 +402,16 @@ pub struct Process impl io.Reader, io.Writer {
 
 	pub func terminate(self) {
         /*
-            Stop the child.
+            Stops the child process.
 
-            On POSIX OSs the method sends SIGTERM. On Windows the API function TerminateProcess() is called to stop the child.
+            On POSIX OSs, this method sends SIGTERM. On Windows, the API function TerminateProcess() is called to stop the child.
+
+            Example:
+            p := Process("/bin/sleep", args=["100"])
+            p.terminate()
+
+            See Also:
+            - kill: For a more forceful way to stop the process.
         */
 
 		os.terminateprocess(self.handle)
@@ -370,10 +419,19 @@ pub struct Process impl io.Reader, io.Writer {
 
 	pub func write(self, data) {
 	    /*
-	        Send data on process stdin.
+	        Sends data to the process's stdin.
 
-	        - Parameter data: Data to write to stdin of the process.
-	        - Returns: Number of bytes written.
+            This method writes data to the standard input of the process.
+
+            Example:
+            p := Process("/usr/bin/wc", stdin=@pipe, stdout=@pipe)
+            bytes_written := p.write("Hello, World!")
+
+            - Parameter data: Data to write to stdin of the process.
+            - Returns: Number of bytes written.
+
+            See Also:
+            - writeline: For writing data with an automatic newline.
 	    */
 
 		return self.fds[0].write(data)
@@ -381,10 +439,19 @@ pub struct Process impl io.Reader, io.Writer {
 
 	pub func writeline(self, data) {
         /*
-            Send data on process stdin and automatically add the new-line character.
+            Sends data to the process's stdin and automatically adds a newline character.
+
+            This method is similar to write(), but it appends a newline character to the data.
+
+            Example:
+            p := Process("/usr/bin/wc", stdin=@pipe, stdout=@pipe)
+            bytes_written := p.writeline("Hello, World!")
 
             - Parameter data: Data to write to stdin of the process.
-            - Returns: Number of bytes written.
+            - Returns: Number of bytes written, including the newline character.
+
+            See Also:
+            - write: For writing data without an automatic newline.
         */
 
 		wBytes := self.fds[0].write(data)
@@ -395,10 +462,20 @@ pub struct Process impl io.Reader, io.Writer {
 
 	pub func read(self, size) {
 	    /*
-            Read data from process stdout.
+            Reads data from the process's stdout.
+
+            This method reads a specified number of bytes from the standard output of the process.
+
+            Example:
+            p := Process("/bin/echo", args=["Hello, World!"], stdout=@pipe)
+            output := p.read(-1)  # Read all available data
 
             - Parameter size: Number of bytes to read from the process stdout.
-            - Returns: Bytes object.
+            - Returns: Bytes object containing the read data.
+
+            See Also:
+            - readinto: For reading data into an existing buffer.
+            - read_err: For reading from stderr instead of stdout.
         */
 
 		return self.fds[1].read(size)
@@ -406,12 +483,23 @@ pub struct Process impl io.Reader, io.Writer {
 
 	pub func readinto(self, obj, offset) {
         /*
-            Read data from process stdout.
+            Reads data from the process's stdout into an existing buffer.
+
+            This method reads data from the standard output of the process and writes it into a provided buffer.
+
+            Example:
+            p := Process("/bin/echo", args=["Hello, World!"], stdout=@pipe)
+            buffer := Bytes(100)
+            bytes_read := p.readinto(buffer, 0)
 
             - Parameters:
-              - obj: Bytes-like writable object.
-              - offset: Offset to start writing from.
+               - obj: Bytes-like writable object to store the read data.
+               - offset: Offset in the object to start writing from.
             - Returns: Number of bytes read.
+
+            See Also:
+            - read: For reading data into a new Bytes object.
+            - read_err: For reading from stderr instead of stdout.
         */
 
 		return self.fds[1].readinto(obj, offset)
@@ -419,10 +507,19 @@ pub struct Process impl io.Reader, io.Writer {
 
 	pub func read_err(self, size) {
         /*
-            Read data from process stderr.
+            Reads data from the process's stderr.
+
+            This method reads a specified number of bytes from the standard error of the process.
+
+            Example:
+            p := Process("/bin/ls", args=["/nonexistent"], stderr=@pipe)
+            error_output := p.read_err(-1)  # Read all available error data
 
             - Parameter size: Number of bytes to read from the process stderr.
-            - Returns: Bytes object.
+            - Returns: Bytes object containing the read error data.
+
+            See Also:
+            - read: For reading from stdout instead of stderr.
         */
 
 		return self.fds[2].read(size)

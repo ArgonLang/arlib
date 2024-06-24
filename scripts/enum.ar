@@ -12,8 +12,18 @@ pub func all(enum) {
     /*
         Returns true if all elements in enumerable are truthy.
 
+        This function checks if every element in the given enumerable evaluates to true.
+
+        Example:
+        enum := [1, 2, 3, 4, 5]
+        result := all(enum)
+        # Result: true
+
         - Parameter enum: Enumerable object.
         - Returns: True if all elements are truthy, false otherwise.
+
+        See Also:
+        - any: For checking if at least one element is truthy.
     */
 
     for var cur of enum {
@@ -29,10 +39,20 @@ pub func all_by(fn, enum) {
     /*
         Returns true if `item |> fn` is truthy for all elements in enumerable.
 
+        This function applies a predicate function to each element and checks if all results are truthy.
+
+        Example:
+        enum := [2, 4, 6, 8]
+        result := all_by((x) => {x % 2 == 0}, enum)
+        # Result: true
+
         - Parameters:
-          - fn: Predicate function.
-          - enum: Enumerable object.
-        - Returns: True if all elements are truthy, false otherwise.
+           - fn: Predicate function.
+           - enum: Enumerable object.
+        - Returns: True if all elements are truthy when passed through fn, false otherwise.
+
+        See Also:
+        - any_by: For checking if at least one element satisfies a condition.
     */
 
     for var cur of enum {
@@ -48,8 +68,18 @@ pub func any(enum) {
     /*
         Returns true if at least one element in enumerable is truthy.
 
+        This function checks if any element in the given enumerable evaluates to true.
+
+        Example:
+        enum := [0, 0, 1, 0, 0]
+        result := any(enum)
+        # Result: true
+
         - Parameter enum: Enumerable object.
-        - Returns: True if at last one element are truthy, false otherwise.
+        - Returns: True if at least one element is truthy, false otherwise.
+
+        See Also:
+        - all: For checking if all elements are truthy.
     */
 
     for var cur of enum {
@@ -65,10 +95,20 @@ pub func any_by(fn, enum) {
     /*
         Returns true if `item |> fn` is truthy for at least one element in enumerable.
 
+        This function applies a predicate function to each element and checks if any result is truthy.
+
+        Example:
+        enum := [1, 3, 5, 7, 8]
+        result := any_by((x) => {x % 2 == 0}, enum)
+        # Result: true
+
         - Parameters:
-          - fn: Predicate function.
-          - enum: Enumerable object.
-        - Returns: True if at least one element are truthy, false otherwise.
+           - fn: Predicate function.
+           - enum: Enumerable object.
+        - Returns: True if at least one element is truthy when passed through fn, false otherwise.
+
+        See Also:
+        - all_by: For checking if all elements satisfy a condition.
     */
 
     for var cur of enum {
@@ -84,11 +124,21 @@ pub func at(enum, index, _default) {
     /*
         Finds the element at the given index.
 
+        This function retrieves the element at the specified index in the enumerable.
+
+        Example:
+        enum := ["a", "b", "c", "d"]
+        result := at(enum, 2, "not found")
+        # Result: "c"
+
         - Parameters:
-          - enum: Enumerable object.
-          - index: Zero-based index.
-          - _default: Default value if index is out of bounds.
+           - enum: Enumerable object.
+           - index: Zero-based index.
+           - _default: Default value if index is out of bounds.
         - Returns: Item at given index or _default if index is out of bounds.
+
+        See Also:
+        - drop: For removing elements from the beginning of an enumerable.
     */
 
     if typeof(enum, List, Tuple) || typeof(enum, String) && enum.kind == @ascii {
@@ -116,10 +166,20 @@ pub func chunk_by(fn, enum) {
     /*
         Splits enumerable on every element for which `fn` returns a new value.
 
+        This function groups consecutive elements for which the predicate function returns the same value.
+
+        Example:
+        enum := [1, 2, 2, 3, 4, 4, 6, 7, 7]
+        result := chunk_by((x) => {x % 2 == 0}, enum)
+        # Result: [[1], [2, 2], [3], [4, 4, 6], [7, 7]]
+
         - Parameters:
-          - fn: Predicate function.
-          - enum: Enumerable object.
+           - fn: Predicate function.
+           - enum: Enumerable object.
         - Returns: List of lists.
+
+        See Also:
+        - group_by: For grouping elements based on a key function.
     */
 
     var ret = []
@@ -158,10 +218,20 @@ pub func count(fn, enum) {
     /*
         Returns the count of elements in the enum for which `fn` returns a truthy value.
 
+        This function counts the number of elements that satisfy the given predicate.
+
+        Example:
+        enum := [1, 2, 3, 4, 5, 6]
+        result := count((x) => {x % 2 == 0}, enum)
+        # Result: 3
+
         - Parameters:
-          - fn: Predicate function.
-          - enum: Enumerable object.
-        - Returns: Number of elements in enumerable.
+           - fn: Predicate function.
+           - enum: Enumerable object.
+        - Returns: Number of elements in enumerable that satisfy the predicate.
+
+        See Also:
+        - reject: For filtering elements that don't satisfy a condition.
     */
 
     var length = 0
@@ -179,8 +249,18 @@ pub func dedup(enum) {
     /*
         Enumerates the enumerable, returning a list where all consecutive duplicated elements are collapsed to a single element.
 
-        - Parameters enum: Enumerable object.
+        This function removes consecutive duplicate elements from the enumerable.
+
+        Example:
+        enum := [1, 2, 2, 3, 3, 3, 4, 4, 5]
+        result := dedup(enum)
+        # Result: [1, 2, 3, 4, 5]
+
+        - Parameter enum: Enumerable object.
         - Returns: List where all consecutive duplicated elements are collapsed to a single element.
+
+        See Also:
+        - uniq: For removing all duplicates, not just consecutive ones.
     */
 
     var ret = []
@@ -205,10 +285,20 @@ pub func drop(enum, num) {
     /*
         Drops the amount of elements from the enumerable.
 
+        This function removes a specified number of elements from the beginning of the enumerable.
+
+        Example:
+        enum := [1, 2, 3, 4, 5]
+        result := drop(enum, 2)
+        # Result: [3, 4, 5]
+
         - Parameters:
-          - enum: Enumerable object.
-          - num: Number of items to discard.
+           - enum: Enumerable object.
+           - num: Number of items to discard.
         - Returns: List without `num` amount of elements.
+
+        See Also:
+        - at: For retrieving a specific element by index.
     */
 
     var ret = enum
@@ -224,9 +314,19 @@ pub func each(fn, enum) {
     /*
         Invokes the given `fn` for each element in the enumerable.
 
+        This function applies a given function to each element in the enumerable.
+
+        Example:
+        enum := [1, 2, 3, 4, 5]
+        each((x) => {io.print(x * 2)}, enum)
+        # Prints: 2 4 6 8 10
+
         - Parameters:
-          - fn: Function.
-          - enum: Enumerable object.
+           - fn: Function to apply to each element.
+           - enum: Enumerable object.
+
+        See Also:
+        - enumerate: For iterating over elements with their indices.
     */
 
     for var cur of enum {
@@ -238,7 +338,23 @@ pub func enumerate(enum, start=0) {
     /*
         Adds a counter to each element in iterable and yields it.
 
+        This function creates a generator that yields tuples of (index, element) for each element in the enumerable.
+
+        Example:
+        enum := ["a", "b", "c"]
+        for var idx, elem of enumerate(enum) {
+            io.print("%d: %s" % (idx, elem))
+        }
+        # Prints:
+        # 0: a
+        # 1: b
+        # 2: c
+
         - Parameter enum: Enumerable object.
+        - Returns: Generator yielding (index, element) tuples.
+
+        See Also:
+        - each: For applying a function to each element.
     */
 
     for var itm of enum {
@@ -247,6 +363,24 @@ pub func enumerate(enum, start=0) {
 }
 
 pub func fibgen(n1, n2) {
+    /*
+        Generates Fibonacci numbers.
+
+        This function creates a generator that yields Fibonacci numbers indefinitely.
+
+        Example:
+        fib_gen := fibgen(0, 1)
+        for i := 0; i < 5; i++ {
+            io.print(fib_gen())
+        }
+        # Prints: 0 1 1 2 3
+
+        - Parameters:
+           - n1: First number in the sequence.
+           - n2: Second number in the sequence.
+        - Returns: Generator yielding Fibonacci numbers.
+    */
+
     var nth
 
     loop {
@@ -263,8 +397,18 @@ pub func frequencies(enum) {
     /*
         Returns a dict with keys as unique elements of enumerable and values as the count of every element.
 
-        - Parameters enum: Enumerable object.
+        This function counts the occurrences of each unique element in the enumerable.
+
+        Example:
+        enum := [1, 2, 2, 3, 3, 3, 4, 4, 4, 4]
+        result := frequencies(enum)
+        # Result: {1: 1, 2: 2, 3: 3, 4: 4}
+
+        - Parameter enum: Enumerable object.
         - Returns: Dict with keys as unique elements of enumerable and values as the count of every element.
+
+        See Also:
+        - frequencies_by: For counting occurrences based on a key function.
     */
 
     var ret = {}
@@ -280,10 +424,20 @@ pub func frequencies_by(fn, enum) {
     /*
         Returns a dict with keys as unique elements given by `fn` and values as the count of every element.
 
-         - Parameters:
+        This function counts the occurrences of elements based on a key function.
+
+        Example:
+        enum := ["apple", "banana", "cherry", "date"]
+        result := frequencies_by((x) => {len(x)}, enum)
+        # Result: {5: 2, 6: 1, 4: 1}
+
+        - Parameters:
            - fn: Key function.
            - enum: Enumerable object.
         - Returns: Dict with keys as unique elements given by `fn` and values as the count of every element.
+
+        See Also:
+        - frequencies: For counting occurrences of elements directly.
     */
 
     var ret = {}
@@ -301,10 +455,20 @@ pub func group_by(fn, enum) {
     /*
         Splits the enumerable into groups based on `fn`.
 
+        This function groups elements of the enumerable based on the result of applying a key function.
+
+        Example:
+        enum := [1, 2, 3, 4, 5, 6]
+        result := group_by((x) => {x % 2 == 0 ? "even" : "odd"}, enum)
+        # Result: {"odd": [1, 3, 5], "even": [2, 4, 6]}
+
         - Parameters:
-          - fn: Key function.
-          - enum: Enumerable object.
+           - fn: Key function.
+           - enum: Enumerable object.
         - Returns: Dict where each key is given by `fn` and each value is a list of elements given the same key.
+
+        See Also:
+        - chunk_by: For grouping consecutive elements.
     */
 
     var ret = {}
@@ -322,10 +486,20 @@ pub func reject(fn, enum) {
     /*
         Returns a list of elements in enumerable excluding those for which the `fn` returns a truthy value.
 
+        This function filters out elements that satisfy the given predicate.
+
+        Example:
+        enum := [1, 2, 3, 4, 5, 6]
+        result := reject((x) => {x % 2 == 0}, enum)
+        # Result: [1, 3, 5]
+
         - Parameters:
-          - fn: Predicate function.
-          - enum: Enumerable object.
+           - fn: Predicate function.
+           - enum: Enumerable object.
         - Returns: List of elements excluding those for which the `fn` returns a truthy value.
+
+        See Also:
+        - count: For counting elements that satisfy a condition.
     */
 
     var ret = []
@@ -340,6 +514,22 @@ pub func reject(fn, enum) {
 }
 
 pub func seqgen(base) {
+    /*
+        Generates a sequence of numbers.
+
+        This function creates a generator that yields an infinite sequence of numbers starting from a given base.
+
+        Example:
+        seq_gen := seqgen(1)
+        for i := 0; i < 5; i++ {
+            io.print(seq_gen())
+        }
+        # Prints: 1 2 3 4 5
+
+        - Parameter base: Starting number of the sequence.
+        - Returns: Generator yielding a sequence of numbers.
+    */
+
     loop {
         yield base++
     }
@@ -351,8 +541,19 @@ pub func uniq(enum) {
     /*
         Enumerates the enumerable, removing all duplicated elements.
 
-        - Parameters enum: Enumerable object.
+        This function removes all duplicate elements from the enumerable, keeping only the first occurrence of each element.
+
+        Example:
+        enum := [1, 2, 2, 3, 3, 3, 4, 4, 4, 4]
+        result := uniq(enum)
+        # Result: [1, 2, 3, 4]
+
+        - Parameter enum: Enumerable object.
         - Returns: List without duplicated elements.
+
+        See Also:
+        - dedup: For removing only consecutive duplicates.
+        - uniq_by: For removes elements based on the uniqueness of their transformed values using the given function.
     */
 
     var chk = Set()
@@ -372,10 +573,20 @@ pub func uniq_by(fn, enum) {
     /*
         Enumerates the enumerable, by removing the elements for which `fn` returned duplicate elements.
 
+        This function removes elements based on the uniqueness of their transformed values using the given function.
+
+        Example:
+        enum := ["apple", "banana", "cherry", "date"]
+        result := uniq_by((x) => {len(x)}, enum)
+        # Result: ["apple"]
+
         - Parameters:
-          - fn: Predicate function.
-          - enum: Enumerable object.
-        - Returns: List without duplicated elements.
+           - fn: Predicate function.
+           - enum: Enumerable object.
+        - Returns: List without duplicated elements based on the predicate function.
+
+        See Also:
+        - uniq: For removing duplicates without a predicate function.
     */
 
     var chk = Set()

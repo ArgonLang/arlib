@@ -13,10 +13,19 @@ pub let __version = "@PROJECT_VERSION@"
 
 pub func isabs(path) {
     /*
-        Determine whether the given path is an absolute pathname.
+        Determines whether the given path is an absolute pathname.
+
+        This function checks if the provided path represents an absolute pathname based on the current operating system.
+
+        Example:
+        is_absolute := isabs("/home/user/documents")
+        # Result: true (on Unix-like systems)
 
         - Parameter path: The pathname to be checked.
         - Returns: True if the path is an absolute pathname, false otherwise.
+
+        See Also:
+        - abspath: For converting a relative path to an absolute path.
     */
 
     sep := os.pathsep
@@ -48,10 +57,20 @@ pub func isabs(path) {
 
 pub func abspath(path) {
     /*
-        Return a normalized absolute version of the pathname.
+        Returns a normalized absolute version of the pathname.
+
+        This function converts a relative path to an absolute path and normalizes it.
+
+        Example:
+        abs_path := abspath("./documents/file.txt")
+        # Result: "/home/user/documents/file.txt" (assuming current directory is /home/user)
 
         - Parameter path: The pathname to be normalized.
         - Returns: The normalized version of the pathname.
+
+        See Also:
+        - isabs: For checking if a path is already absolute.
+        - normalize: For normalizing a path without making it absolute.
     */
 
     if !isabs(path) {
@@ -72,10 +91,19 @@ pub func abspath(path) {
 
 pub func basename(path) {
     /*
-        Return the base name of the pathname.
+        Returns the base name of the pathname.
+
+        This function extracts the final component of a pathname.
+
+        Example:
+        base := basename("/home/user/documents/file.txt")
+        # Result: "file.txt"
 
         - Parameter path: The pathname.
         - Returns: The base name of the pathname.
+
+        See Also:
+        - dirname: For getting the directory part of a pathname.
     */
 
     return split(path)[1]
@@ -83,10 +111,19 @@ pub func basename(path) {
 
 pub func dirname(path) {
     /*
-        Return the directory name of the pathname.
+        Returns the directory name of the pathname.
+
+        This function extracts the directory part of a pathname.
+
+        Example:
+        dir := dirname("/home/user/documents/file.txt")
+        # Result: "/home/user/documents"
 
         - Parameter path: The pathname.
         - Returns: The directory name of the pathname.
+
+        See Also:
+        - basename: For getting the final component of a pathname.
     */
 
     return split(path)[0]
@@ -94,10 +131,19 @@ pub func dirname(path) {
 
 pub func split(path) {
     /*
-        Split the pathname into a tuple (head, tail), where tail is the last pathname component.
+        Splits the pathname into a tuple (head, tail), where tail is the last pathname component.
+
+        This function separates a pathname into its directory part and its final component.
+
+        Example:
+        head, tail := split("/home/user/documents/file.txt")
+        # Result: head = "/home/user/documents", tail = "file.txt"
 
         - Parameter path: The pathname to be split.
         - Returns: A tuple representing head and tail of the specified pathname.
+
+        See Also:
+        - join: For combining path components.
     */
 
     sep := os.pathsep
@@ -118,12 +164,21 @@ pub func split(path) {
 
 pub func join(base, ...comps) {
     /*
-        Join one or more path segments.
+        Joins one or more path segments.
+
+        This function combines multiple path components into a single pathname.
+
+        Example:
+        full_path := join("/home/user", "documents", "file.txt")
+        # Result: "/home/user/documents/file.txt"
 
         - Parameters:
-          - base: The base pathname.
-          - ...comps: Other path components.
+           - base: The base pathname.
+           - ...comps: Other path components.
         - Returns: A string representing the concatenated path components.
+
+        See Also:
+        - split: For separating a pathname into components.
     */
 
     sep := os.pathsep
@@ -153,10 +208,19 @@ pub func join(base, ...comps) {
 
 pub func normalize(path) {
     /*
-        Normalize a path by eliminating double slashes, etc.
+        Normalizes a path by eliminating double slashes, etc.
+
+        This function simplifies a pathname by removing redundant separators and resolving ".." and "." components.
+
+        Example:
+        norm_path := normalize("/home/user/../user/./documents//file.txt")
+        # Result: "/home/user/documents/file.txt"
 
         - Parameter path: The pathname to be normalized.
         - Returns: The normalized version of the pathname.
+
+        See Also:
+        - abspath: For normalizing and making a path absolute.
     */
 
     sep := os.pathsep
@@ -199,10 +263,19 @@ pub func normalize(path) {
 
 pub func normcase(path) {
     /*
-        Normalize the case of the pathname.
+        Normalizes the case of the pathname.
+
+        This function adjusts the case of a pathname based on the operating system conventions.
+
+        Example:
+        norm_case := normcase("C:/Users/Documents")
+        # Result: "c:\users\documents" (on Windows)
 
         - Parameter path: The pathname to be normalized.
         - Returns: The normalized version of the pathname.
+
+        See Also:
+        - normalize: For general path normalization.
     */
 
     if runtime.os != "windows" {
@@ -222,10 +295,19 @@ pub func normcase(path) {
 
 pub func splitroot(path) {
     /*
-        Split the pathname into a 3-item tuple (drive, root, tail).
+        Splits the pathname into a 3-item tuple (drive, root, tail).
+
+        This function separates a pathname into its drive, root, and remaining components.
+
+        Example:
+        drive, root, tail := splitroot("C:\\Users\\documents\\file.txt")
+        # Result: drive = "C:", root = "\\", tail = "Users\\documents\\file.txt" (on Windows)
 
         - Parameter path: The pathname to be split.
         - Returns: A tuple representing drive, root, and tail of the specified pathname.
+
+        See Also:
+        - split: For a simpler path splitting.
     */
 
     sep := os.pathsep
@@ -257,10 +339,20 @@ pub func splitroot(path) {
 
 pub func commonpath(...paths) {
 	/*
-        Given a sequence of paths, return the longest common sub-path.
+        Given a sequence of paths, returns the longest common sub-path.
+
+        This function finds the longest path that is a prefix of all the given paths.
+
+        Example:
+        common := commonpath("/home/user/docs", "/home/user/downloads", "/home/user/music")
+        # Result: "/home/user"
 
         - Parameter ...paths: A list of pathnames.
         - Returns: A string representing the longest common sub-path in the specified list.
+        - Panics: Raises ValueError if the input sequence is empty or if absolute and relative paths are mixed.
+
+        See Also:
+        - join: For combining path components.
     */
 
     if !paths {

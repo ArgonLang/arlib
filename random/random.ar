@@ -2,6 +2,14 @@
  * This source file is part of the Argon project.
  *
  * Licensed under the Apache License v2.0
+ *
+ * This module provides a comprehensive set of functions for generating random numbers,
+ * selecting random elements from sequences, and working with random bytes. It implements
+ * various random number generation algorithms, including a system random number generator
+ * (if available) and a Mersenne Twister engine.
+ *
+ * The module offers both low-level functions for direct control over the random number
+ * generation process and high-level convenience functions for common random operations.
 */
 
 from "error" import ValueError
@@ -10,6 +18,20 @@ from "random/_random" import *
 
 if HAVE_SYSRAND {
     pub struct SREngine impl RandomT {
+        /*
+            Represents a system random number generator engine.
+
+            This struct implements the RandomT trait and uses the system's random number
+            generator for producing random values.
+
+            Example:
+            engine := SREngine@()
+            random_bits := engine.randbits(32)
+
+            See Also:
+            - MTEngine: For an alternative random number generator.
+        */
+
         pub func discard(self, z) {
             # Do nothing
         }
@@ -36,12 +58,16 @@ if HAVE_SYSRAND {
 
 pub func randbelow(engine, n) {
     /*
-        Return a random UInt in the range [0,n).
+        Returns a random integer in the range [0, n).
+
+        Example:
+        n := 100
+        result := randbelow(engine, n)
 
         - Parameters:
-          - engine: Instance of random engine.
-          - n: Upper end of the range.
-        - Returns: A random UInt in the range [0,n).
+           - engine: Instance of random engine.
+           - n: Upper bound of the range (exclusive).
+        - Returns: A random UInt in the range [0, n).
     */
 
     if n == 0 {
@@ -62,12 +88,15 @@ pub func randrange(engine, start, stop, step) {
     /*
         Returns a randomly selected element from the defined range.
 
+        Example:
+        result := randrange(engine, 1, 10, 2)
+
         - Parameters:
-          - engine: Instance of random engine.
-          - start: An integer specifying at which position to start.
-          - stop: An integer specifying at which position to end.
-          - step: An integer specifying the incrementation.
-        - Returns: A randomly selected UInt.
+           - engine: Instance of random engine.
+           - start: An integer specifying the start of the range.
+           - stop: An integer specifying the end of the range (exclusive).
+           - step: An integer specifying the step between numbers in the range.
+        - Returns: A randomly selected UInt from the range.
     */
 
     if !typeof(start, Int) {
@@ -114,11 +143,14 @@ pub func randrange(engine, start, stop, step) {
 
 pub func _randbytes(engine, length) {
     /*
-        Generate 'length' random bytes.
+        Generate a specified number of random bytes.
+
+        Example:
+        random_bytes := _randbytes(engine, 16)
 
         - Parameters:
-          - engine: Instance of random engine.
-          - length: Length of the bytes string to create.
+           - engine: Instance of random engine.
+           - length: Length of the bytes string to create.
         - Returns: Bytes string of random bytes.
     */
 
@@ -137,12 +169,15 @@ pub func _randlist(engine, start, stop, step, length) {
     /*
         Returns a list of items randomly selected from the defined range.
 
+        Example:
+        random_list := _randlist(engine, 1, 10, 1, 5)
+
         - Parameters:
-          - engine: Instance of random engine.
-          - start: An integer specifying at which position to start.
-          - stop: An integer specifying at which position to end.
-          - step: An integer specifying the incrementation.
-          - length: Length of the list to create.
+           - engine: Instance of random engine.
+           - start: An integer specifying the start of the range.
+           - stop: An integer specifying the end of the range (exclusive).
+           - step: An integer specifying the step between numbers in the range.
+           - length: Length of the list to create.
         - Returns: List of items randomly selected.
     */
 
@@ -159,10 +194,14 @@ pub func randchoice(engine, seq) {
     /*
         Choose a random element from a non-empty sequence.
 
+        Example:
+        seq := [1, 2, 3, 4, 5]
+        chosen := randchoice(engine, seq)
+
         - Parameters:
-          - engine: Instance of random engine.
-          - seq: Non-empty sequence.
-        - Returns: A random element.
+           - engine: Instance of random engine.
+           - seq: Non-empty sequence.
+        - Returns: A random element from the sequence.
     */
 
     return seq[randbelow(engine, len(seq))]
@@ -172,11 +211,15 @@ pub func randsample(engine, population, k) {
     /*
         Return a k length list of unique elements chosen from the population sequence.
 
+        Example:
+        population := [1, 2, 3, 4, 5]
+        sample := randsample(engine, population, 3)
+
         - Parameters:
-          - engine: Instance of random engine.
-          - population: Population sequence.
-          - k: Length of the list of unique elements.
-        - Returns: List of unique elements chosen from the population sequence
+           - engine: Instance of random engine.
+           - population: Population sequence.
+           - k: Length of the list of unique elements.
+        - Returns: List of unique elements chosen from the population sequence.
     */
 
     var plen = len(population)
