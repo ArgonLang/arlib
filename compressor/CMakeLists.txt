@@ -1,0 +1,19 @@
+project(compressor VERSION ${PROJECT_VERSION})
+
+set(COMPRESSOR_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/compressor")
+
+add_library(${PROJECT_NAME} SHARED compressor.cpp)
+
+set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
+
+set_target_properties(${PROJECT_NAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${COMPRESSOR_OUTPUT_DIRECTORY})
+set_target_properties(${PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${COMPRESSOR_OUTPUT_DIRECTORY})
+
+if (WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE Argon::ArgonVM)
+else()
+    target_link_libraries(${PROJECT_NAME} PRIVATE Argon::ArgonVM)
+endif ()
+
+#add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+#        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/compressor.ar" ${COMPRESSOR_OUTPUT_DIRECTORY}/COMPRESSOR.ar)
