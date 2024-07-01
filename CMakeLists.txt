@@ -41,6 +41,7 @@ endforeach()
 
 add_compile_definitions(_ARGONAPI_LIB)
 
+add_subdirectory(hashlib)
 add_subdirectory(random)
 add_subdirectory(regex)
 add_subdirectory(ssl)

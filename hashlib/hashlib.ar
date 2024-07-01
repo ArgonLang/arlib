@@ -1,0 +1,140 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * This module implements a common interface to many different secure hash and message
+ * digest algorithms. Included are the FIPS secure hash algorithms SHA1, SHA224, SHA256,
+ * SHA384, and SHA512 (defined in FIPS 180-2) as well as RSA's MD5 algorithm (defined in
+ * Internet RFC 1321). This module provides various cryptographic hashing functions.
+*/
+
+from "hashlib/_hashlib" import *
+
+pub func blake2s256(data) {
+    /*
+         Calculate the BLAKE2s (256-bit) hash of the input data.
+
+         BLAKE2s is optimized for 8- to 32-bit platforms and produces digests
+         of any size between 1 and 32 bytes. This function uses the 256-bit (32 byte) variant.
+
+         Parameter data: The input data to be hashed.
+         Returns: A string containing the hexadecimal representation of the BLAKE2s256 hash.
+     */
+
+    return HashContext("BLAKE2s256").update(data).hexdigest()
+}
+
+pub func blake2b512(data) {
+    /*
+         Calculate the BLAKE2b (512-bit) hash of the input data.
+
+         BLAKE2b is optimized for 64-bit platforms and produces digests
+         of any size between 1 and 64 bytes. This function uses the 512-bit (64 byte) variant.
+
+         Parameter data: The input data to be hashed.
+         Returns: A string containing the hexadecimal representation of the BLAKE2b512 hash.
+     */
+
+    return HashContext("BLAKE2b512").update(data).hexdigest()
+}
+
+pub func md5(data) {
+    /*
+         Calculate the MD5 hash of the input data.
+
+         This function provides a convenient way to compute the MD5 hash
+         of the given data in a single call. It creates a HashContext
+         for MD5, updates it with the provided data, and returns the
+         hexadecimal digest.
+
+         Warning: MD5 is considered cryptographically broken and should not be used for security purposes.
+
+         Parameter data: The input data to be hashed.
+         Returns: A string containing the hexadecimal representation of the MD5 hash.
+     */
+
+    return HashContext("MD5").update(data).hexdigest()
+}
+
+pub func sha1(data) {
+    /*
+         Calculate the SHA1 hash of the input data.
+
+         This function provides a convenient way to compute the SHA1 hash
+         of the given data in a single call. It creates a HashContext
+         for SHA1, updates it with the provided data, and returns the
+         hexadecimal digest.
+
+         Warning: SHA1 is considered weak and should not be used for security-critical applications.
+
+         Parameter data: The input data to be hashed.
+         Returns: A string containing the hexadecimal representation of the SHA1 hash.
+     */
+
+    return HashContext("SHA1").update(data).hexdigest()
+}
+
+pub func sha256(data) {
+    /*
+         Calculate the SHA256 hash of the input data.
+
+         This function provides a convenient way to compute the SHA256 hash
+         of the given data in a single call. It creates a HashContext
+         for SHA256, updates it with the provided data, and returns the
+         hexadecimal digest.
+
+         Parameter data: The input data to be hashed.
+         Returns: A string containing the hexadecimal representation of the SHA256 hash.
+     */
+
+    return HashContext("SHA256").update(data).hexdigest()
+}
+
+pub func sha512(data) {
+    /*
+         Calculate the SHA512 hash of the input data.
+
+         This function provides a convenient way to compute the SHA512 hash
+         of the given data in a single call. It creates a HashContext
+         for SHA512, updates it with the provided data, and returns the
+         hexadecimal digest.
+
+         Parameter data: The input data to be hashed.
+         Returns: A string containing the hexadecimal representation of the SHA512 hash.
+     */
+
+    return HashContext("SHA512").update(data).hexdigest()
+}
+
+pub func shake128(data, &kwargs) {
+    /*
+         Calculate the SHAKE128 hash of the input data.
+
+         SHAKE128 is an extendable-output function (XOF) in the SHA-3 family.
+         It can produce hash outputs of any desired length.
+
+         Parameter data: The input data to be hashed.
+         KWParameters:
+            - length: The desired output length in bytes. Default is 64 bytes.
+         Returns: A string containing the hexadecimal representation of the SHAKE128 hash.
+     */
+
+    return HashContext("SHAKE128").update(data).hexdigest(&kwargs)
+}
+
+pub func shake256(data, &kwargs) {
+    /*
+         Calculate the SHAKE256 hash of the input data.
+
+         SHAKE256 is an extendable-output function (XOF) in the SHA-3 family.
+         It can produce hash outputs of any desired length.
+
+         Parameter data: The input data to be hashed.
+         KWParameters:
+            - length: The desired output length in bytes. Default is 64 bytes.
+         Returns: A string containing the hexadecimal representation of the SHAKE256 hash.
+     */
+
+    return HashContext("SHAKE256").update(data).hexdigest(&kwargs)
+}

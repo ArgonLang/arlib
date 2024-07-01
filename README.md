@@ -19,6 +19,8 @@ In any case, if necessary, it is possible to use a customized version for a give
   - enum -- Provides a set of algorithms to work with enumerables
 - File formats:
   - ini -- INI format parser
+- Cryptographic Services:
+  - hashlib -- Secure hashes and message digests
 - Internet protocols and related stuff:
   - base64 -- Base16, Base32, Base64 data encodings
   - http -- HTTP modules 
