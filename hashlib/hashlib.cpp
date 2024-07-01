@@ -4,6 +4,8 @@
 
 #include <argon/vm/runtime.h>
 
+#include <version.h>
+
 #include <argon/vm/datatype/bytes.h>
 #include <argon/vm/datatype/nil.h>
 #include <hashlib/hashlib.h>
