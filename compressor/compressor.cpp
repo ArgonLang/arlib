@@ -21,7 +21,7 @@ const FunctionDef compressor_methods[] = {
                           "\n"
                           "- Parameter data: Bufferable object containing the data to compress.\n"
                           "- Returns: A bytes object containing compressed data.\n",
-                          ": data", false, true),
+                          ": data", false, false),
         ARGON_METHOD_STUB("flush",
                           "Finish the compression process.\n"
                           "\n"
@@ -29,7 +29,7 @@ const FunctionDef compressor_methods[] = {
                           "object after calling this method. This method may be called more than once. Subsequent calls will return empty bytes objects.\n"
                           "\n"
                           "- Returns: A bytes object containing any remaining compressed data.\n",
-                          nullptr, false, true),
+                          nullptr, false, false),
         ARGON_METHOD_SENTINEL
 };
 
@@ -71,8 +71,20 @@ const TypeInfo *arlib::compressor::type_compressor_t_ = &CompressorType;
 
 const FunctionDef decompressor_methods[] = {
         ARGON_METHOD_STUB("decompress",
-                          "",
-                          nullptr, false, true),
+                          "Decompress data incrementally.\n"
+                          "\n"
+                          "This method decompresses the input data incrementally. It can be called "
+                          "multiple times with new chunks of compressed data until the entire "
+                          "compressed stream has been processed.\n"
+                          "\n"
+                          "The method returns a Bytes object containing the decompressed data "
+                          "produced from the input. If the input does not produce any output "
+                          "(which can happen due to the nature of some compression algorithms), "
+                          "an empty Bytes object is returned.\n"
+                          "\n"
+                          "- Parameter data: Bufferable object containing the data to compress.\n"
+                          "- Returns: A Bytes object containing the decompressed data.\n",
+                          ": data", false, false),
         ARGON_METHOD_SENTINEL
 };
 

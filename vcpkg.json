@@ -3,7 +3,8 @@
     "version": "0.3.0",
     "dependencies": [
       "openssl",
-      "pcre2"
+      "pcre2",
+      "liblzma"
     ]
   }
   

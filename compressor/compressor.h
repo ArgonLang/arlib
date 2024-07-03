@@ -10,6 +10,10 @@
 #include <argon/vm/datatype/arobject.h>
 
 namespace arlib::compressor {
+    constexpr const char *kCompressorError[] = {
+            (const char *) "CompressorError"
+    };
+
     extern const argon::vm::datatype::TypeInfo *type_compressor_t_;
     extern const argon::vm::datatype::TypeInfo *type_decompressor_t_;
 } // namespace arlib::compressor
