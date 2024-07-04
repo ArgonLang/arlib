@@ -1,0 +1,41 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+*/
+
+from "compressor/_bz2" import *
+
+pub func compress(data, level=9) {
+    /*
+        Compresses the provided data using the BZip2 algorithm.
+
+        This function compresses the data in a single operation, internally using an BZ2Compressor with the specified level.
+
+        - Parameters:
+           - data: The data to compress.
+           - preset: Compression level (1 to 9, default 9).
+
+        - Returns: The compressed data (Bytes type).
+    */
+
+    c := BZ2Compressor(level=level)
+    out := c.compress(data)
+
+    return out + c.flush()
+}
+
+pub func decompress(data) {
+    /*
+        Decompresses the provided BZip2 data.
+
+        This function decompresses BZip2 data in a single operation, internally using an BZ2Decompressor.
+
+        - Parameters:
+           - data: The compressed data to decompress.
+
+        Returns: The decompressed data (Bytes type).
+    */
+
+    return BZ2Decompressor().decompress(data)
+}

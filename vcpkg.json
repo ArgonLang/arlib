@@ -4,7 +4,8 @@
     "dependencies": [
       "openssl",
       "pcre2",
-      "liblzma"
+      "liblzma",
+      "bzip2"
     ]
   }
   

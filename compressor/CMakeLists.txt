@@ -2,18 +2,26 @@ project(compressor VERSION ${PROJECT_VERSION})
 
 set(COMPRESSOR_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/compressor")
 
+set(MODULE_BZ2 bz2)
 set(MODULE_LZMA lzma)
+
+# *** Find libBZ2 ***
+find_package(BZip2 REQUIRED)
 
 # *** Find libLZMA ***
 find_package(LibLZMA CONFIG REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED compressor.cpp)
 add_library(${MODULE_LZMA} SHARED lzma.cpp)
+add_library(${MODULE_BZ2} SHARED bz2.cpp)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
 
 # LZMA
 set_target_properties(${MODULE_LZMA} PROPERTIES PREFIX "_")
+
+# BZ2
+set_target_properties(${MODULE_BZ2} PROPERTIES PREFIX "_")
 
 set_target_properties(${PROJECT_NAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${COMPRESSOR_OUTPUT_DIRECTORY})
 set_target_properties(${PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${COMPRESSOR_OUTPUT_DIRECTORY})
@@ -22,17 +30,22 @@ set_target_properties(${PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${COMP
 set_target_properties(${MODULE_LZMA} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${COMPRESSOR_OUTPUT_DIRECTORY})
 set_target_properties(${MODULE_LZMA} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${COMPRESSOR_OUTPUT_DIRECTORY})
 
-if (WIN32)
-    target_link_libraries(${PROJECT_NAME} PRIVATE Argon::ArgonVM)
+# BZ2
+set_target_properties(${MODULE_BZ2} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${COMPRESSOR_OUTPUT_DIRECTORY})
+set_target_properties(${MODULE_BZ2} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${COMPRESSOR_OUTPUT_DIRECTORY})
 
-    # LZMA
-    target_link_libraries(${MODULE_LZMA} PRIVATE Argon::ArgonVM liblzma::liblzma)
-else()
-    target_link_libraries(${PROJECT_NAME} PRIVATE Argon::ArgonVM)
+# Compressor
+target_link_libraries(${PROJECT_NAME} PRIVATE Argon::ArgonVM)
 
-    # LZMA
-    target_link_libraries(${MODULE_LZMA} PRIVATE Argon::ArgonVM liblzma::liblzma)
-endif ()
+# LZMA
+target_link_libraries(${MODULE_LZMA} PRIVATE Argon::ArgonVM liblzma::liblzma)
 
 add_custom_command(TARGET ${MODULE_LZMA} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/lzma.ar" ${COMPRESSOR_OUTPUT_DIRECTORY}/lzma.ar)
+
+# BZ2
+target_link_libraries(${MODULE_BZ2} PRIVATE Argon::ArgonVM BZip2::BZip2)
+
+add_custom_command(TARGET ${MODULE_BZ2} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/bz2.ar" ${COMPRESSOR_OUTPUT_DIRECTORY}/bz2.ar)
+
