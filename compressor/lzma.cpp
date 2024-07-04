@@ -33,9 +33,10 @@ Bytes *CompressOrFlush(LZMACompressor *lzc, unsigned char *buffer, ArSize length
     auto *lstream = &lzc->lzma_stream;
 
     index = 0;
+    lstream->next_in = (unsigned char *) buffer;
+    lstream->avail_in = length;
+
     do {
-        lstream->next_in = (unsigned char *) buffer;
-        lstream->avail_in = length;
         lstream->next_out = (unsigned char *) (out_buf + index);
         lstream->avail_out = out_buf_sz - index;
 
