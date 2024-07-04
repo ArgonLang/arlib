@@ -1,0 +1,38 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+*/
+
+from "compressor/_zlib" import *
+
+pub func compress(data, level=6) {
+    /*
+        Compresses the provided data using the DEFLATE algorithm.
+
+        This function compresses the data in a single operation, internally using a ZIPCompressor with the specified level.
+
+        - Parameter data: The data to compress.
+        - KWParameters:
+           - level: Compression level (0 to 9, default 6). Higher values provide better compression but are slower.
+        - Returns: The compressed data (Bytes type).
+    */
+
+    c := ZIPCompressor(level=level)
+    out := c.compress(data)
+
+    return out + c.flush()
+}
+
+pub func decompress(data) {
+    /*
+        Decompresses the provided DEFLATE data.
+
+        This function decompresses DEFLATE data in a single operation, internally using a ZIPDecompressor.
+
+        - Parameter data: The compressed data to decompress.
+        - Returns: The decompressed data (Bytes type).
+    */
+
+    return ZIPDecompressor().decompress(data)
+}

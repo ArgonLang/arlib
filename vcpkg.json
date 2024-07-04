@@ -5,7 +5,8 @@
       "openssl",
       "pcre2",
       "liblzma",
-      "bzip2"
+      "bzip2",
+      "libzip"
     ]
   }
   
