@@ -6,7 +6,10 @@
       "pcre2",
       "liblzma",
       "bzip2",
-      "libzip"
+      {
+        "name": "libzip",
+        "features": ["bzip2", "liblzma"]
+      }
     ]
   }
   

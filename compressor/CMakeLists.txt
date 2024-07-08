@@ -5,6 +5,7 @@ set(COMPRESSOR_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/compressor")
 set(MODULE_BZ2 bz2)
 set(MODULE_LZMA lzma)
 set(MODULE_ZLIB zlib)
+set(MODULE_ZIPFILE zipfile)
 
 # *** Find libBZ2 ***
 find_package(BZip2 REQUIRED)
@@ -19,6 +20,7 @@ add_library(${PROJECT_NAME} SHARED compressor.cpp)
 add_library(${MODULE_LZMA} SHARED lzma.cpp)
 add_library(${MODULE_BZ2} SHARED bz2.cpp)
 add_library(${MODULE_ZLIB} SHARED zlib.cpp)
+add_library(${MODULE_ZIPFILE} SHARED zipfile.cpp)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
 
@@ -30,6 +32,9 @@ set_target_properties(${MODULE_LZMA} PROPERTIES PREFIX "_")
 
 # ZLIB
 set_target_properties(${MODULE_ZLIB} PROPERTIES PREFIX "_")
+
+# ZIPFILE
+set_target_properties(${MODULE_ZIPFILE} PROPERTIES PREFIX "")
 
 set_target_properties(${PROJECT_NAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${COMPRESSOR_OUTPUT_DIRECTORY})
 set_target_properties(${PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${COMPRESSOR_OUTPUT_DIRECTORY})
@@ -45,6 +50,10 @@ set_target_properties(${MODULE_LZMA} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${COMPR
 # ZLIB
 set_target_properties(${MODULE_ZLIB} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${COMPRESSOR_OUTPUT_DIRECTORY})
 set_target_properties(${MODULE_ZLIB} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${COMPRESSOR_OUTPUT_DIRECTORY})
+
+# ZIPFILE
+set_target_properties(${MODULE_ZIPFILE} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${COMPRESSOR_OUTPUT_DIRECTORY})
+set_target_properties(${MODULE_ZIPFILE} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${COMPRESSOR_OUTPUT_DIRECTORY})
 
 # Compressor
 target_link_libraries(${PROJECT_NAME} PRIVATE Argon::ArgonVM)
@@ -67,3 +76,5 @@ target_link_libraries(${MODULE_ZLIB} PRIVATE Argon::ArgonVM libzip::zip)
 add_custom_command(TARGET ${MODULE_ZLIB} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/zlib.ar" ${COMPRESSOR_OUTPUT_DIRECTORY}/zlib.ar)
 
+# ZIPFILE
+target_link_libraries(${MODULE_ZIPFILE} PRIVATE Argon::ArgonVM libzip::zip)
