@@ -39,3 +39,8 @@ In any case, if necessary, it is possible to use a customized version for a give
   - subprocess -- Initiating and managing processes
 - Text processing:
   - regex -- Perl-like regex support
+- Data Compression and Archiving:
+  - zipfile -- Read and write ZIP-format archive files
+  - lzma -- Compression using the LZMA algorithm
+  - bz2 -- Compression compatible with bzip2
+  - zlib -- Compression compatible with gzip
