@@ -299,9 +299,10 @@ ARGON_METHOD(zipfile_testzip, testzip,
              "\n"
              "- Returns: The name of the first corrupt file in the archive, or nil if the zip file is valid.\n",
              nullptr, false, false) {
-    char buffer[4096];
-
     auto *self = (ZipFile *) _self;
+    char *buffer;
+
+    int buflen = 1024 * 1024;
 
     zip_stat_t sb;
 
@@ -313,10 +314,17 @@ ARGON_METHOD(zipfile_testzip, testzip,
         return nullptr;
     }
 
+    // Alloc 1MB of buffer
+    if ((buffer = (char *) argon::vm::memory::Alloc(buflen)))
+        return nullptr;
+
     auto num_entries = zip_get_num_entries(self->archive, 0);
     for (zip_uint64_t i = 0; i < num_entries; i++) {
         if (zip_stat_index(self->archive, i, 0, &sb) != 0) {
+            argon::vm::memory::Free(buffer);
+
             ErrorFormat(kZipFileError[0], kZipFileError[6], zip_strerror(self->archive));
+
             return nullptr;
         }
 
@@ -328,6 +336,8 @@ ARGON_METHOD(zipfile_testzip, testzip,
 
         auto *zf = zip_fopen_index(self->archive, i, 0);
         if (zf == nullptr) {
+            argon::vm::memory::Free(buffer);
+
             ErrorFormat(kZipFileError[0], kZipFileError[8], zip_strerror(self->archive));
 
             return nullptr;
@@ -336,11 +346,14 @@ ARGON_METHOD(zipfile_testzip, testzip,
         auto crc_computed = crc32(0L, Z_NULL, 0);
 
         zip_int64_t bytes_read;
-        while ((bytes_read = zip_fread(zf, buffer, sizeof(buffer))) > 0)
+        while ((bytes_read = zip_fread(zf, buffer, buflen)) > 0)
             crc_computed = crc32(crc_computed, (const Bytef *) buffer, bytes_read);
 
         if (bytes_read < 0) {
+            argon::vm::memory::Free(buffer);
+
             ErrorFormat(kZipFileError[0], kZipFileError[9], zip_file_strerror(zf));
+
             zip_fclose(zf);
 
             return nullptr;
@@ -351,6 +364,8 @@ ARGON_METHOD(zipfile_testzip, testzip,
         if (crc_computed != sb.crc)
             return (ArObject *) StringNew(filename);
     }
+
+    argon::vm::memory::Free(buffer);
 
     return ARGON_NIL_VALUE;
 }
