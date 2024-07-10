@@ -13,6 +13,8 @@
 #include <argon/vm/datatype/arstring.h>
 
 namespace arlib::compressor::zipfile {
+    constexpr const unsigned long long kBUFFER_MAX_SIZE = 1024 * 1024; // 1MB
+
     constexpr const char *kZipFileError[] = {
             (const char *) "ZipFileError",
             (const char *) "failed to close ZIP file: %s",
@@ -29,7 +31,10 @@ namespace arlib::compressor::zipfile {
             (const char *) "failed to add file to archive: %s",
             (const char *) "failed to set compression method: %s",
             (const char *) "failed to add data to archive: %s",
-            (const char *) "archive is closed"
+            (const char *) "archive is closed",
+            (const char *) "there is no item named '%s' in the archive",
+            (const char *) "failed to create directory: %s",
+            (const char *) "failed to get file name: %s"
     };
 
     struct ZipFile {

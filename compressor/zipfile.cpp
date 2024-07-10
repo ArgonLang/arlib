@@ -14,6 +14,7 @@
 
 #include <argon/vm/datatype/arstring.h>
 #include <argon/vm/datatype/bytes.h>
+#include <argon/vm/datatype/error.h>
 #include <argon/vm/datatype/list.h>
 #include <argon/vm/datatype/nil.h>
 
@@ -21,6 +22,41 @@
 
 using namespace argon::vm::datatype;
 using namespace arlib::compressor::zipfile;
+
+bool CreateDirectories(char *path) {
+    char *p = path;
+
+    while (*p != '\0') {
+        if (*p == '/') {
+            char tmp = *p;
+            *p = '\0';
+
+            if (mkdir(path, 0755) != 0) {
+                if (errno != EEXIST) {
+                    ErrorFormat(kOSError[0], "failed to create directory '%s': %s", path, strerror(errno));
+
+                    *p = tmp;
+
+                    return false;
+                }
+            }
+
+            *p = tmp;
+        }
+        p++;
+    }
+
+    // Handle the case where the path ends with a directory
+    if (strlen(path) > 0 && path[strlen(path) - 1] != '/') {
+        if (mkdir(path, 0755) != 0 && errno != EEXIST) {
+            ErrorFormat(kOSError[0], "failed to create directory '%s': %s", path, strerror(errno));
+
+            return false;
+        }
+    }
+
+    return true;
+}
 
 Error *ZipErrorNew(int ze) {
     zip_error_t error;
@@ -32,6 +68,161 @@ Error *ZipErrorNew(int ze) {
     zip_error_fini(&error);
 
     return err;
+}
+
+String *NormalizePath(const String *filename, const String *path) {
+    if (!IsTrue((ArObject *) path))
+        return StringNew(ARGON_RAW_STRING(filename), ARGON_RAW_STRING_LENGTH(filename) + 1);
+
+    auto *nix = StringIntern("/");
+    auto win = StringIntern("\\");
+
+    if (nix == nullptr || win == nullptr) {
+        Release(nix);
+        Release(win);
+
+        return nullptr;
+    }
+
+    auto *fullpath = StringFormat("%s/%s", ARGON_RAW_STRING(path), ARGON_RAW_STRING(filename));
+    if (fullpath == nullptr) {
+        Release(nix);
+        Release(win);
+
+        return nullptr;
+    }
+
+    auto *normalized = StringReplace(fullpath, win, nix, -1);
+
+    Release(nix);
+    Release(win);
+    Release(fullpath);
+
+    return normalized;
+}
+
+String *ExtractFile(ZipFile *self, String *filename, const String *path) {
+    struct zip_stat st{};
+
+    auto index = zip_name_locate(self->archive, (const char *) ARGON_RAW_STRING(filename), 0);
+    if (index == -1) {
+        ErrorFormat(kZipFileError[0], kZipFileError[16], ARGON_RAW_STRING(filename));
+
+        return nullptr;
+    }
+
+    // Get file info
+    if (zip_stat_index(self->archive, index, 0, &st) != 0) {
+        ErrorFormat(kZipFileError[0], kZipFileError[6], zip_strerror(self->archive));
+
+        return nullptr;
+    }
+
+    // Open the file in the archive
+    auto *zf = zip_fopen_index(self->archive, index, 0);
+    if (zf == nullptr) {
+        ErrorFormat(kZipFileError[0], kZipFileError[8], zip_strerror(self->archive));
+
+        return nullptr;
+    }
+
+    auto buflen = st.size;
+    if (buflen > kBUFFER_MAX_SIZE)
+        buflen = kBUFFER_MAX_SIZE;
+
+    auto *buffer = (char *) argon::vm::memory::Alloc(buflen);
+    if (buffer == nullptr) {
+        zip_fclose(zf);
+
+        return nullptr;
+    }
+
+    String *fullpath;
+    if (StringRFind(filename, "/") != -1 || IsTrue((ArObject *) path)) {
+        fullpath = NormalizePath(filename, path);
+        if (fullpath == nullptr) {
+            argon::vm::memory::Free(buffer);
+
+            zip_fclose(zf);
+
+            return nullptr;
+        }
+
+        // WARNING: RAW String manipulation
+        char *mkpath = (char *) ARGON_RAW_STRING(fullpath);
+
+        auto *lsep = strrchr(mkpath, '/');
+        if (lsep != nullptr) {
+            *lsep = '\0';
+
+            if (!CreateDirectories(mkpath)) {
+                argon::vm::memory::Free(buffer);
+
+                Release(fullpath);
+
+                zip_fclose(zf);
+
+                return nullptr;
+            }
+
+            *lsep = '/';
+        }
+    } else
+        fullpath = IncRef(filename);
+
+    // Open the output file
+    auto *output_file = fopen((const char *) ARGON_RAW_STRING(fullpath), "wb");
+    if (output_file == nullptr) {
+        argon::vm::memory::Free(buffer);
+
+        ErrorFormat(kOSError[0], "failed to create output file: %s", strerror(errno));
+
+        Release(fullpath);
+
+        zip_fclose(zf);
+
+        return nullptr;
+    }
+
+    // Extract the file
+    zip_int64_t bytes_read;
+    while ((bytes_read = zip_fread(zf, buffer, buflen)) > 0) {
+        if (fwrite(buffer, 1, bytes_read, output_file) != bytes_read) {
+            argon::vm::memory::Free(buffer);
+
+            ErrorFormat(kOSError[0], "failed to write to output file: %s", strerror(errno));
+
+            Release(fullpath);
+
+            fclose(output_file);
+
+            zip_fclose(zf);
+
+            return nullptr;
+        }
+    }
+
+    if (bytes_read < 0) {
+        argon::vm::memory::Free(buffer);
+
+        ErrorFormat(kZipFileError[0], kZipFileError[9], zip_file_strerror(zf));
+
+        Release(fullpath);
+
+        fclose(output_file);
+
+        zip_fclose(zf);
+
+        return nullptr;
+    }
+
+    argon::vm::memory::Free(buffer);
+
+    zip_fclose(zf);
+
+    fclose(output_file);
+
+    return fullpath;
 }
 
 void ZipError(int ze) {
@@ -124,6 +315,114 @@ ARGON_METHOD(zipfile_close, close,
 
         self->is_open = false;
     }
+
+    return ARGON_NIL_VALUE;
+}
+
+ARGON_METHOD(zipfile_extract, extract,
+             "Extract a member from the archive to the current working directory.\n"
+             "\n"
+             "- Parameter member: Filename of the member to extract.\n"
+             "- KWParameters:\n"
+             "  - path: A directory to extract to. The current working directory will be used if not specified.\n"
+             "- Returns: The path to the extracted file.\n",
+             "s: member", false, true) {
+    auto *self = (ZipFile *) _self;
+
+    String *path;
+    if (!KParamLookupStr((Dict *) kwargs, "path", &path, "", nullptr))
+        return nullptr;
+
+    auto *fullpath = ExtractFile(self, (String *) args[0], path);
+
+    Release(path);
+
+    return (ArObject *) fullpath;
+}
+
+ARGON_METHOD(zipfile_extractall, extractall,
+             "Extract all members from the archive to the current working directory.\n"
+             "\n"
+             "- KWParameters:\n"
+             "  - path: A directory to extract to. The current working directory will be used if not specified.\n"
+             "  - members: A list of members to extract. All members will be extracted if not specified.\n",
+             nullptr, false, true) {
+    auto *self = (ZipFile *) _self;
+    ArObject *members;
+    String *path;
+
+    if (!KParamLookupStr((Dict *) kwargs, "path", &path, "", nullptr))
+        return nullptr;
+
+    if (!KParamLookup((Dict *) kwargs, "members", nullptr, &members, nullptr, true))
+        return nullptr;
+
+    if (members == nullptr) {
+        auto num_entries = zip_get_num_entries(self->archive, 0);
+        for (zip_int64_t i = 0; i < num_entries; i++) {
+            auto *name = zip_get_name(self->archive, i, 0);
+            if (name == nullptr) {
+                Release(path);
+
+                ErrorFormat(kZipFileError[0], kZipFileError[18], zip_strerror(self->archive));
+
+                return nullptr;
+            }
+
+            auto ar_name = StringNew(name);
+            if(ar_name== nullptr){
+                Release(path);
+
+                return nullptr;
+            }
+
+            if(!ExtractFile(self, ar_name, path)){
+                Release(ar_name);
+                Release(path);
+
+                return nullptr;
+            }
+
+            Release(ar_name);
+        }
+
+        Release(path);
+
+        return ARGON_NIL_VALUE;
+    }
+
+    auto *iter = IteratorGet(members, false);
+    if (iter == nullptr) {
+        Release(path);
+
+        return nullptr;
+    }
+
+    ArObject *item;
+    while ((item = IteratorNext(iter)) != nullptr) {
+        if (!AR_TYPEOF(item, type_string_)) {
+            ErrorFormat(kTypeError[0], kTypeError[2], type_string_->name, AR_TYPE_QNAME(item));
+
+            Release(path);
+            Release(item);
+            Release(iter);
+
+            return nullptr;
+        }
+
+        if(!ExtractFile(self, (String*)item, path)){
+            Release(item);
+            Release(iter);
+            Release(path);
+
+            return nullptr;
+        }
+
+        Release(item);
+    }
+
+    Release(iter);
+    Release(path);
 
     return ARGON_NIL_VALUE;
 }
@@ -540,6 +839,8 @@ const FunctionDef zipfile_methods[] = {
         zipfile_zipfile,
 
         zipfile_close,
+        zipfile_extract,
+        zipfile_extractall,
         zipfile_mkdir,
         zipfile_namelist,
         zipfile_read,
@@ -562,7 +863,8 @@ TypeInfo ZipFileType = {
         AROBJ_HEAD_INIT_TYPE,
         "ZipFile",
         nullptr,
-        nullptr,
+        "ZipFile is used to manipulate ZIP archives. "
+        "It provides methods for extracting files, adding new files, and testing the integrity of the archive.",
         sizeof(ZipFile),
         TypeInfoFlags::BASE,
         nullptr,
