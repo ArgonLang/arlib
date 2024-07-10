@@ -8,6 +8,14 @@
 #include <zip.h>
 #include <zlib.h>
 
+#include <argon/util/macros.h>
+
+#ifdef _ARGON_PLATFORM_WINDOWS
+
+#include <direct.h>
+
+#endif
+
 #include <argon/vm/runtime.h>
 
 #include <version.h>
@@ -31,7 +39,11 @@ bool CreateDirectories(char *path) {
             char tmp = *p;
             *p = '\0';
 
+#ifndef _ARGON_PLATFORM_WINDOWS
             if (mkdir(path, 0755) != 0) {
+#else
+            if (_mkdir(path) != 0) {
+#endif
                 if (errno != EEXIST) {
                     ErrorFormat(kOSError[0], "failed to create directory '%s': %s", path, strerror(errno));
 
@@ -48,10 +60,16 @@ bool CreateDirectories(char *path) {
 
     // Handle the case where the path ends with a directory
     if (strlen(path) > 0 && path[strlen(path) - 1] != '/') {
-        if (mkdir(path, 0755) != 0 && errno != EEXIST) {
-            ErrorFormat(kOSError[0], "failed to create directory '%s': %s", path, strerror(errno));
+#ifndef _ARGON_PLATFORM_WINDOWS
+        if (mkdir(path, 0755) != 0) {
+#else
+        if (_mkdir(path) != 0) {
+#endif
+            if (errno != EEXIST) {
+                ErrorFormat(kOSError[0], "failed to create directory '%s': %s", path, strerror(errno));
 
-            return false;
+                return false;
+            }
         }
     }
 
@@ -63,7 +81,7 @@ Error *ZipErrorNew(int ze) {
 
     zip_error_init_with_code(&error, ze);
 
-    auto err = ErrorNew("ZipError", zip_error_strerror(&error));
+    auto err = ErrorNew(kZipFileError[0], zip_error_strerror(&error));
 
     zip_error_fini(&error);
 
@@ -370,13 +388,13 @@ ARGON_METHOD(zipfile_extractall, extractall,
             }
 
             auto ar_name = StringNew(name);
-            if(ar_name== nullptr){
+            if (ar_name == nullptr) {
                 Release(path);
 
                 return nullptr;
             }
 
-            if(!ExtractFile(self, ar_name, path)){
+            if (!ExtractFile(self, ar_name, path)) {
                 Release(ar_name);
                 Release(path);
 
@@ -410,7 +428,7 @@ ARGON_METHOD(zipfile_extractall, extractall,
             return nullptr;
         }
 
-        if(!ExtractFile(self, (String*)item, path)){
+        if (!ExtractFile(self, (String *) item, path)) {
             Release(item);
             Release(iter);
             Release(path);

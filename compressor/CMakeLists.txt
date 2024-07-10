@@ -71,10 +71,10 @@ add_custom_command(TARGET ${MODULE_LZMA} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/lzma.ar" ${COMPRESSOR_OUTPUT_DIRECTORY}/lzma.ar)
 
 # ZLIB
-target_link_libraries(${MODULE_ZLIB} PRIVATE Argon::ArgonVM libzip::zip)
+target_link_libraries(${MODULE_ZLIB} PRIVATE Argon::ArgonVM libzip::zip ZLIB::ZLIB)
 
 add_custom_command(TARGET ${MODULE_ZLIB} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/zlib.ar" ${COMPRESSOR_OUTPUT_DIRECTORY}/zlib.ar)
 
 # ZIPFILE
-target_link_libraries(${MODULE_ZIPFILE} PRIVATE Argon::ArgonVM libzip::zip)
+target_link_libraries(${MODULE_ZIPFILE} PRIVATE Argon::ArgonVM libzip::zip ZLIB::ZLIB)

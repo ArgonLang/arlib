@@ -3,7 +3,7 @@
 // Licensed under the Apache License v2.0
 
 #include <argon/vm/runtime.h>
-#include <argon/vm/importer/import.cpp>
+#include <argon/vm/importer/import.h>
 
 #include <version.h>
 
