@@ -3,7 +3,13 @@
     "version": "0.3.0",
     "dependencies": [
       "openssl",
-      "pcre2"
+      "pcre2",
+      "liblzma",
+      "bzip2",
+      {
+        "name": "libzip",
+        "features": ["bzip2", "liblzma"]
+      }
     ]
   }
   

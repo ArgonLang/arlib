@@ -1,0 +1,41 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+*/
+
+from "compressor/_lzma" import *
+
+pub func compress(data, preset=6) {
+    /*
+        Compresses the provided data using the LZMA algorithm.
+
+        This function compresses the data in a single operation, internally using an LZMACompressor with the specified preset.
+
+        - Parameters:
+           - data: The data to compress.
+           - preset: Compression level (0 to 9, default 6). Higher values provide better compression but are slower.
+
+        - Returns: The compressed data (Bytes type).
+    */
+
+    c := LZMACompressor(preset=preset)
+    out := c.compress(data)
+
+    return out + c.flush()
+}
+
+pub func decompress(data) {
+    /*
+        Decompresses the provided LZMA data.
+
+        This function decompresses LZMA data in a single operation, internally using an LZMADecompressor.
+
+        - Parameters:
+           - data: The compressed data to decompress.
+
+        Returns: The decompressed data (Bytes type).
+    */
+
+    return LZMADecompressor().decompress(data)
+}
