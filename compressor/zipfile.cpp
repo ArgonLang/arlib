@@ -42,7 +42,7 @@ bool CreateDirectories(char *path) {
 #ifndef _ARGON_PLATFORM_WINDOWS
             if (mkdir(path, 0755) != 0) {
 #else
-            if (_mkdir(path) != 0) {
+                if (_mkdir(path) != 0) {
 #endif
                 if (errno != EEXIST) {
                     ErrorFormat(kOSError[0], "failed to create directory '%s': %s", path, strerror(errno));
@@ -63,7 +63,7 @@ bool CreateDirectories(char *path) {
 #ifndef _ARGON_PLATFORM_WINDOWS
         if (mkdir(path, 0755) != 0) {
 #else
-        if (_mkdir(path) != 0) {
+            if (_mkdir(path) != 0) {
 #endif
             if (errno != EEXIST) {
                 ErrorFormat(kOSError[0], "failed to create directory '%s': %s", path, strerror(errno));
@@ -324,7 +324,6 @@ ARGON_METHOD(zipfile_close, close,
 
     if (self->is_open) {
         int result = zip_close(self->archive);
-
         if (result != 0) {
             ErrorFormat(kZipFileError[0], kZipFileError[1], zip_strerror(self->archive));
 
@@ -347,6 +346,14 @@ ARGON_METHOD(zipfile_extract, extract,
              "s: member", false, true) {
     auto *self = (ZipFile *) _self;
 
+    std::unique_lock _(self->lock);
+
+    if (!self->is_open) {
+        ErrorFormat(kZipFileError[0], kZipFileError[15]);
+
+        return nullptr;
+    }
+
     String *path;
     if (!KParamLookupStr((Dict *) kwargs, "path", &path, "", nullptr))
         return nullptr;
@@ -368,6 +375,14 @@ ARGON_METHOD(zipfile_extractall, extractall,
     auto *self = (ZipFile *) _self;
     ArObject *members;
     String *path;
+
+    std::unique_lock _(self->lock);
+
+    if (!self->is_open) {
+        ErrorFormat(kZipFileError[0], kZipFileError[15]);
+
+        return nullptr;
+    }
 
     if (!KParamLookupStr((Dict *) kwargs, "path", &path, "", nullptr))
         return nullptr;
@@ -779,10 +794,10 @@ ARGON_METHOD(zipfile_writeraw, writeraw,
     IntegerUnderlying c_method;
     IntegerUnderlying compress_level;
 
-    if (!KParamLookupInt((Dict *) kwargs, "type", &c_method, 0))
+    if (!KParamLookupInt((Dict *) kwargs, "level", &compress_level, -1))
         return nullptr;
 
-    if (!KParamLookupInt((Dict *) kwargs, "level", &compress_level, -1))
+    if (!KParamLookupInt((Dict *) kwargs, "method", &c_method, self->compression_method))
         return nullptr;
 
     if (!BufferGet(args[1], &buffer, BufferFlags::READ))
@@ -796,10 +811,20 @@ ARGON_METHOD(zipfile_writeraw, writeraw,
         return nullptr;
     }
 
-    // Create a zip source from the buffer
-    auto *source = zip_source_buffer(self->archive, buffer.buffer, buffer.length, 0);
-    if (source == nullptr) {
+    auto datalen = buffer.length;
+    auto *data = (unsigned char *) argon::vm::memory::Copy2Malloc(buffer.buffer, datalen);
+    if (data == nullptr) {
         BufferRelease(&buffer);
+
+        return nullptr;
+    }
+
+    BufferRelease(&buffer);
+
+    // Create a zip source from the buffer
+    auto *source = zip_source_buffer(self->archive, data, datalen, 1);
+    if (source == nullptr) {
+        argon::vm::memory::WFree(data);
 
         ErrorFormat(kZipFileError[0], kZipFileError[11], zip_strerror(self->archive));
         return nullptr;
@@ -810,7 +835,7 @@ ARGON_METHOD(zipfile_writeraw, writeraw,
                               (const char *) ARGON_RAW_STRING((String *) args[0]),
                               source, ZIP_FL_OVERWRITE);
     if (index < 0) {
-        BufferRelease(&buffer);
+        zip_source_free(source);
 
         ErrorFormat(kZipFileError[0], kZipFileError[14], zip_strerror(self->archive));
         return nullptr;
@@ -818,9 +843,8 @@ ARGON_METHOD(zipfile_writeraw, writeraw,
 
     // Set compression method and level
     if (zip_set_file_compression(self->archive, index, (int) c_method, (zip_uint32_t) compress_level) < 0) {
-        BufferRelease(&buffer);
-
         ErrorFormat(kZipFileError[0], kZipFileError[13], zip_strerror(self->archive));
+
         return nullptr;
     }
 
@@ -832,13 +856,10 @@ ARGON_METHOD(zipfile_writeraw, writeraw,
 
     if (zip_file_set_external_attributes(self->archive, index, 0, ZIP_OPSYS_UNIX, 0100644 << 16) < 0 ||
         zip_file_set_mtime(self->archive, index, zip_stat.mtime, 0) < 0) {
-        BufferRelease(&buffer);
 
         ErrorFormat(kZipFileError[0], kZipFileError[15], zip_strerror(self->archive));
         return nullptr;
     }
-
-    BufferRelease(&buffer);
 
     return ARGON_NIL_VALUE;
 }
