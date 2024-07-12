@@ -168,7 +168,8 @@ TypeInfo MatchType = {
         AROBJ_HEAD_INIT_TYPE,
         "Match",
         nullptr,
-        nullptr,
+        "The Match object contains information about a successful match of a Pattern "
+        "object against a string. It provides access to the matched groups and various properties of the match.",
         sizeof(Match),
         TypeInfoFlags::BASE,
         nullptr,

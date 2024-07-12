@@ -401,7 +401,8 @@ TypeInfo PatternType = {
         AROBJ_HEAD_INIT_TYPE,
         "Pattern",
         nullptr,
-        nullptr,
+        "Represents a compiled regular expression pattern. It provides methods for pattern matching, "
+        "searching, and text manipulation.",
         sizeof(Pattern),
         TypeInfoFlags::BASE,
         nullptr,

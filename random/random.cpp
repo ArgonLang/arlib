@@ -63,7 +63,9 @@ TypeInfo RandomTType = {
         AROBJ_HEAD_INIT_TYPE,
         "RandomT",
         nullptr,
-        nullptr,
+        "This trait defines the interface for random number generator objects. "
+        "It provides methods for generating random numbers and advancing the "
+        "generator's internal state.",
         0,
         TypeInfoFlags::TRAIT,
         nullptr,
@@ -260,7 +262,8 @@ const TypeInfo MTEngineType = {
         AROBJ_HEAD_INIT_TYPE,
         "MTEngine",
         nullptr,
-        nullptr,
+        "MTEngine implements the Mersenne Twister algorithm, a pseudorandom "
+        "number generator (PRNG) that produces high-quality random numbers.",
         sizeof(MTEngine),
         TypeInfoFlags::BASE,
         nullptr,

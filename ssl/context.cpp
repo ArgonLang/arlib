@@ -811,7 +811,8 @@ TypeInfo SSLContextType = {
         AROBJ_HEAD_INIT_TYPE,
         "SSLContext",
         nullptr,
-        nullptr,
+        "SSLContext is used to create SSL/TLS connections. It encapsulates settings and certificates "
+        "that can be shared across multiple connections.",
         sizeof(SSLContext),
         TypeInfoFlags::BASE,
         nullptr,

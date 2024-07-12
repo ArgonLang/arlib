@@ -789,7 +789,8 @@ TypeInfo SSLSocketType = {
         AROBJ_HEAD_INIT_TYPE,
         "SSLSocket",
         nullptr,
-        nullptr,
+        "SSLSocket represents a secure socket connection using SSL/TLS protocols. It provides encrypted "
+        "communication over an underlying network socket.",
         sizeof(SSLSocket),
         TypeInfoFlags::BASE,
         nullptr,

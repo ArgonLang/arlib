@@ -51,7 +51,9 @@ TypeInfo HashTType = {
         AROBJ_HEAD_INIT_TYPE,
         "HashT",
         nullptr,
-        nullptr,
+        "This trait defines the interface for hash objects that can incrementally "
+        "compute hash values. It provides methods for updating the hash with new data, "
+        "and retrieving the final hash value in both binary and hexadecimal formats.",
         0,
         TypeInfoFlags::TRAIT,
         nullptr,
