@@ -30,7 +30,7 @@ Bytes *CompressOrFlush(LZMACompressor *lzc, unsigned char *buffer, ArSize length
     if (out_buf == nullptr)
         return nullptr;
 
-    auto *lstream = &lzc->lzma_stream;
+    auto *lstream = &lzc->lz_stream;
 
     index = 0;
     lstream->next_in = (unsigned char *) buffer;
@@ -96,12 +96,12 @@ ARGON_FUNCTION(lzmacompressor_lzmacompressor, LZMACompressor,
 
     auto *lcompress = MakeObject<LZMACompressor>(type_lzma_compressor_);
     if (lcompress != nullptr) {
-        lcompress->lzma_stream = LZMA_STREAM_INIT;
+        lcompress->lz_stream = LZMA_STREAM_INIT;
         lcompress->finished = false;
 
         new(&lcompress->lock) argon::vm::sync::RecursiveSharedMutex();
 
-        auto ret = lzma_easy_encoder(&lcompress->lzma_stream, preset, LZMA_CHECK_CRC64);
+        auto ret = lzma_easy_encoder(&lcompress->lz_stream, preset, LZMA_CHECK_CRC64);
         if (ret != LZMA_OK) {
             Release(lcompress);
 
@@ -169,7 +169,7 @@ const ObjectSlots lzmacompressor_objslot = {
 bool lzmacompressor_dtor(LZMACompressor *self) {
     self->lock.~RecursiveSharedMutex();
 
-    lzma_end(&self->lzma_stream);
+    lzma_end(&self->lz_stream);
 
     return true;
 }
@@ -208,12 +208,12 @@ ARGON_FUNCTION(lzmadecompressor_lzmadecompressor, LZMADecompressor,
                nullptr, false, false) {
     auto *lcompress = MakeObject<LZMACompressor>(type_lzma_decompressor_);
     if (lcompress != nullptr) {
-        lcompress->lzma_stream = LZMA_STREAM_INIT;
+        lcompress->lz_stream = LZMA_STREAM_INIT;
         lcompress->finished = false;
 
         new(&lcompress->lock)argon::vm::sync::RecursiveSharedMutex();
 
-        auto ret = lzma_stream_decoder(&lcompress->lzma_stream, UINT64_MAX, LZMA_CONCATENATED);
+        auto ret = lzma_stream_decoder(&lcompress->lz_stream, UINT64_MAX, LZMA_CONCATENATED);
         if (ret != LZMA_OK) {
             Release(lcompress);
 
@@ -251,7 +251,7 @@ ARGON_METHOD_INHERITED(lzmadecompressor_decompress, decompress) {
         return nullptr;
     }
 
-    auto *lstream = &self->lzma_stream;
+    auto *lstream = &self->lz_stream;
     lzma_ret ret;
 
     lstream->next_in = buffer.buffer;

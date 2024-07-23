@@ -20,7 +20,7 @@ namespace arlib::compressor::lzma {
 
         argon::vm::sync::RecursiveSharedMutex lock;
 
-        lzma_stream lzma_stream;
+        lzma_stream lz_stream;
 
         bool finished;
     };
