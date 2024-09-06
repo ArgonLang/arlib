@@ -217,6 +217,14 @@ pub struct Argparse {
             required
         )
 
+        if default == nil {
+            if action == @store_true {
+                arg.def = false
+            } elif action == @store_false {
+                arg.def = true
+            }
+        }
+
         self.argmap[name] = arg
 
         # Push alias
@@ -275,7 +283,17 @@ pub struct Argparse {
             return {}
         }
 
-        return result.ok()
+        result = result.ok()
+
+        for var opt of self.argmap.values() {
+            if opt.def != nil {
+                if opt.dest not in result {
+                    result[opt.dest] = opt.def
+                }
+            }
+        }
+
+        return result
     }
 
     func parse_args(self, args) {
