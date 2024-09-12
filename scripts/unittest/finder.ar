@@ -1,0 +1,147 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * The file is part of the unittest package and provides functionality to discover and load test cases from Argon source files.
+*/
+
+from "unittest" import Test, TestCase
+
+import "io"
+import "os"
+import "ospath"
+import "regex"
+
+let TEST_STRUCT_RE = regex.Pattern(b"struct\\s+([a-zA-Z0-9]+)\\s*impl")
+
+pub func enumerate_modules(paths) {
+    /*
+        Enumerates test modules in the given paths.
+
+        This function searches for Argon source files (.ar) that potentially contain test modules.
+        It looks for files with 'test' in their name (case-insensitive).
+
+        - Parameter paths: A list of directory paths to search for test modules.
+        - Yields: Filenames of potential test modules.
+    */
+
+    for var path of paths {
+        basename := ospath.basename(path)
+        if basename && "test" in basename.lower() && basename.endswith(".ar") {
+            yield basename
+
+            continue
+        }
+
+        dirlist := trap os.listdir(path)
+        if dirlist {
+            dirlist = dirlist.ok()
+
+            for var item of dirlist {
+                if "test" in item.lower() && item.endswith(".ar") {
+                    yield item
+                }
+            }
+        }
+    }
+}
+
+pub func load_test_module(path) {
+    /*
+        Loads a test module from the given file path.
+
+        This function attempts to load an Argon source file and identify test structures within it.
+        It uses a regular expression to find struct definitions that might be test classes.
+
+        - Parameter path: The file path of the test module to load.
+        - Yields: Loaded module objects containing test structures.
+    */
+
+    om := trap io.open(path)
+    if om {
+       lines := om.ok().read(-1)
+       for var match of TEST_STRUCT_RE.findall(lines) {
+           if "test" in match.match(1)[0].lower() {
+               l_mod := require(path)
+               if l_mod {
+                   yield l_mod.ok()
+               }
+           }
+       }
+    }
+}
+
+pub func find_tests(module) {
+    /*
+        Finds test structures within a loaded module.
+
+        This function examines the attributes of a loaded module to identify test structures.
+        It looks for types that implement the Test trait.
+
+        - Parameter module: A loaded module object.
+        - Yields: Test types that implement the Test trait.
+    */
+
+    candidates := show(module)
+    for var candidate of candidates {
+        if "test" in candidate.lower() {
+            t_struct := getattr(module, candidate)
+            if typeof(t_struct, Type) && implements(t_struct, Test) {
+                yield t_struct
+            }
+        }
+    }
+}
+
+pub func find_test_methods(t_struct) {
+    /*
+        Finds test methods within a test structure.
+
+        This function examines the attributes of a test structure to identify test methods.
+        It looks for methods whose names start with "test".
+
+        - Parameter t_struct: Struct that implement Test type.
+        - Yields: Test method.
+    */
+
+    test_methods := show(t_struct)
+    for var test of test_methods {
+        if test.startswith("test") {
+            method := getattr(t_struct, test)
+            if typeof(method, Function) && method.__method {
+                yield method
+            }
+        }
+    }
+}
+
+pub func find_tests_case(paths) {
+    /*
+        Discovers and creates TestCase objects for all tests in the given paths.
+
+        This function combines the functionality of other functions in this module to find all test cases in the specified paths.
+        It searches for test modules, loads them, identifies test structures, and creates TestCase objects for each test method found.
+
+        - Parameter paths: A single path or list of paths to search for tests.
+        - Returns: A list of TestCase objects.
+    */
+
+    var found = []
+
+    if !typeof(paths, List, Tuple) {
+        paths = [paths]
+    }
+
+    for var module of enumerate_modules(paths) {
+        for var t_module of load_test_module(module) {
+            for var test of find_tests(t_module) {
+                for var method of find_test_methods(test) {
+                    found.append(TestCase(method))
+                }
+            }
+        }
+    }
+
+    return found
+}

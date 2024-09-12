@@ -1,0 +1,149 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * The file is part of the unittest package and provides functionality to run tests.
+*/
+
+import "io"
+import "os"
+
+import "unittest/finder"
+import "unittest/result"
+
+pub trait TestRunnerT {
+    pub func print_result(self, file=)
+
+    pub func run(self)
+}
+
+pub struct TestRunner impl TestRunnerT {
+    var result
+    var tc
+
+    pub func TestRunner(paths, result=result.TestResult()) {
+        /*
+            Creates a new TestRunner instance.
+
+            This constructor initializes a TestRunner with the given test paths and result object.
+            It uses the finder module to discover test cases in the specified paths.
+
+            - Parameter paths: A single path or list of paths to search for tests.
+            - KWParameters:
+              - result: A TestResult object to store test results (default is a new TestResult).
+            - Returns: A new TestRunner instance.
+        */
+
+        return TestRunner@(result, finder.find_tests_case(paths))
+    }
+
+    pub func print_result(self, file=io.stdout) {
+        self.result.print_result(file=file, info="\nSingle thread tests runner:\n\n")
+    }
+
+    pub func run(self) {
+        /*
+            Runs all test cases sequentially.
+
+            This method executes each test case in the order they were discovered, updating the result object with the outcome of each test.
+
+            - Returns: The TestResult object containing all test outcomes.
+        */
+
+        for var tc of self.tc {
+            self.result.run(tc)
+        }
+
+        return self.result
+    }
+}
+
+pub struct ParallelTestRunner impl TestRunnerT {
+    var limit
+    var result
+    var tc
+
+    pub func ParallelTestRunner(paths, result=result.TestResult(), limit=4) {
+        /*
+            Creates a new ParallelTestRunner instance.
+
+            This constructor initializes a ParallelTestRunner with the given test paths,
+            result object, and concurrency limit.
+
+            - Parameter paths: A single path or list of paths to search for tests.
+            - KWParameters:
+              - result: A TestResult object to store test results (default is a new TestResult).
+              - limit: The maximum number of concurrent test executions (default is 4).
+            - Returns: A new ParallelTestRunner instance.
+        */
+
+        return ParallelTestRunner@(limit, result, finder.find_tests_case(paths))
+    }
+
+    pub func print_result(self, file=io.stdout) {
+        self.result.print_result(file=file, info="\nMulti thread tests runner (Concurrent limit: %d):\n\n" % self.limit)
+    }
+
+    func run_test(self, test, ch) {
+        self.result.run(test)
+        nil -> ch
+    }
+
+    pub func run(self) {
+        /*
+            Runs all test cases in parallel.
+
+            This method executes test cases concurrently, up to the specified limit.
+            It uses channels to manage concurrency and waits for all tests to complete.
+
+            - Returns: The TestResult object containing all test outcomes.
+        */
+
+        totals := len(self.tc)
+        ch := Chan(backlog=self.limit)
+
+        for var tc of self.tc {
+            spawn self.run_test(tc, ch)
+        }
+
+        loop totals > 0 {
+            <- ch
+            totals -= 1
+        }
+
+        return self.result
+    }
+}
+
+func main() {
+    argparse := require("argparse").ok()
+
+    parser := argparse.Argparse(name="unittest/runner", description="Argon unittest - A framework for discovering and executing unit tests")
+
+    parser.addarg("-t", "--test",
+        help="Specify the test module or directory. If not provided, uses the current working directory.",
+        default=os.getcwd(), dest="path")
+
+    parser.addarg("--parallel",
+        help="Run tests in parallel mode. This can significantly speed up test execution on multi-core systems.",
+        action=@store_true, dest="parallel")
+
+    parser.addarg("--limit",
+        help="Set the maximum number of concurrent test executions when running in parallel mode. Default is 4.",
+        default="4", dest="limit")
+
+    options := parser.parse()
+
+    runner := options["parallel"] ?
+        ParallelTestRunner(options["path"], limit=Int::parse(options["limit"], 10))
+        : TestRunner(options["path"])
+
+    runner.run()
+
+    runner.print_result()
+}
+
+if __name == "__main" {
+    return main()
+}

@@ -1,0 +1,111 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * The file is part of the unittest package and defines the Result trait and TestResult for managing and reporting test results.
+*/
+
+import "io"
+
+pub trait Result {
+    func start_test(self, test) {}
+    func stop_test(self, test) {}
+
+    pub func add_duration(self, duration)
+
+    pub func run(self, test) {
+        self.start_test(test)
+
+        test.run(self)
+
+        self.stop_test(test)
+    }
+}
+
+pub struct TestResult impl Result {
+    var duration
+    var tc
+
+    pub func TestResult() {
+        return TestResult@(0, [])
+    }
+
+    pub func add_duration(self, duration) {
+        /*
+            Adds the duration of a test to the total execution time.
+
+            - Parameter duration: The duration to add.
+        */
+
+        self.duration += duration
+    }
+
+    pub func run(self, test) {
+        /*
+            Executes a single test and records its result.
+
+            - Parameter test: The test to run.
+        */
+
+        Result::run(self, test)
+
+        self.tc.append(test)
+    }
+
+    pub func print_result(self, file=io.stdout, info="\n") {
+        /*
+            Prints a summary of all test results.
+
+            This function generates a detailed report of all test results, including the status of each test
+            (success, fail, or skipped), execution time, and any error messages for failed tests.
+            It also provides a summary of the total number of tests in each category and the total execution time.
+
+            - KWParameters:
+              - file: The file object to write the results to (default is stdout).
+              - info: Additional information to print before the results (default is a newline).
+        */
+
+        success := 0
+        fail := 0
+        skipped := 0
+
+        max_len := 0
+        for var cursor of self.tc {
+            m_len := len(cursor.t_method.__qname)
+            if m_len > max_len {
+                max_len = m_len
+            }
+        }
+
+        info ? file.write(info)
+
+        for var cursor of self.tc {
+            var m_name = cursor.t_method.__qname
+            var t_line = ""
+
+            m_name = m_name + (" " * (max_len - len(m_name)))
+
+            if cursor.t_status == @FAIL {
+                t_line = "\n"
+            }
+
+            t_line += "%s (%fs)\t... %s" % (m_name, cursor.t_elapsed / 1000, str(cursor.t_status)[1:])
+
+            switch cursor.t_status {
+                case @FAIL:
+                    t_line += "\n\t%s\n\t\t%s\n" % (cursor.t_tb, cursor.t_reason)
+                    fail += 1
+                case @SKIPPED:
+                    t_line += ", why: %s" % cursor.t_reason
+                    skipped += 1
+                default:
+                    success += 1
+            }
+
+            file.write(t_line + "\n")
+        }
+
+        file.write("\nTotal time: %f(s) -- total: %d, success: %d, fail: %d, skipped: %d\n" % (self.duration / 1000, len(self.tc), success, fail, skipped))
+    }
+}

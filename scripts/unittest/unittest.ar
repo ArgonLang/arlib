@@ -1,0 +1,331 @@
+/*
+ * This source file is part of the Argon project.
+ *
+ * Licensed under the Apache License v2.0
+ *
+ * This module provides a framework for writing and running unit tests in Argon.
+*/
+
+from "chrono" import monotonic
+from "error" import TypeError
+
+from "traceback" import extract_panic, StackSummary
+
+pub let __version = "@PROJECT_VERSION@"
+
+let AssertionError = Error(@AssertionError)
+let SkipTest = Error(@SkipTest)
+
+pub trait Test {
+    pub func setup(self) {
+        # This method is called before each test method.
+    }
+
+    pub func teardown(self) {
+        # This method is called after each test method.
+    }
+
+    func assert_in(self, item, container, msg=) {
+        /*
+            Asserts that an item is present in a container.
+
+            - Parameters:
+              - item: The item to check for.
+              - container: The container to search in.
+            - KWParameters
+              - msg: Optional custom error message.
+        */
+
+        if !(item in container) {
+            panic(AssertionError(msg == nil ? "assertion failed: %s not found in %s" % (item, container) : msg))
+        }
+    }
+
+    func assert_not_in(self, item, container, msg=) {
+        /*
+            Asserts that an item is not present in a container.
+
+            - Parameters:
+              - item: The item to check for.
+              - container: The container to search in.
+            - KWParameters
+              - msg: Optional custom error message.
+        */
+
+        if item in container {
+            panic(AssertionError(msg == nil ? "assertion failed: %s found in %s" % (item, container) : msg))
+        }
+    }
+
+    func assert_greater(self, first, second, msg=) {
+        /*
+            Asserts that the first argument is greater than the second.
+
+            - Parameters:
+              - first: The first value to compare.
+              - second: The second value to compare.
+            - KWParameters:
+              - msg: Optional custom error message.
+        */
+
+        if !(first > second) {
+            panic(AssertionError(msg == nil ? "assertion failed: %s is not greater than %s" % (first, second) : msg))
+        }
+    }
+
+    func assert_less(self, first, second, msg=) {
+        /*
+            Asserts that the first argument is less than the second.
+
+            - Parameters:
+              - first: The first value to compare.
+              - second: The second value to compare.
+            - KWParameters:
+              - msg: Optional custom error message.
+        */
+
+        if !(first < second) {
+            panic(AssertionError(msg == nil ? "assertion failed: %s is not less than %s" % (first, second) : msg))
+        }
+    }
+
+    func assert_geq(self, first, second, msg=) {
+        /*
+            Asserts that the first argument is greater than or equal to the second.
+
+            - Parameters:
+              - first: The first value to compare.
+              - second: The second value to compare.
+            - KWParameters:
+              - msg: Optional custom error message.
+        */
+
+        if !(first >= second) {
+            panic(AssertionError(msg == nil ? "assertion failed: %s is not greater than or equal to %s" % (first, second) : msg))
+        }
+    }
+
+    func assert_leq(self, first, second, msg=) {
+        /*
+            Asserts that the first argument is less than or equal to the second.
+
+            - Parameters:
+              - first: The first value to compare.
+              - second: The second value to compare.
+            - KWParameters:
+              - msg: Optional custom error message.
+        */
+
+        if !(first <= second) {
+            panic(AssertionError(msg == nil ? "assertion failed: %s is not less than or equal to %s" % (first, second) : msg))
+        }
+    }
+
+    func assert_eq(self, first, second, msg=) {
+        /*
+            Asserts that two objects are equal.
+
+            - Parameters:
+              - first: The first object to compare.
+              - second: The second object to compare.
+            - KWParameters:
+              - msg: Optional custom error message.
+        */
+
+        if first != second {
+            if msg == nil {
+                panic AssertionError("assertion failed: %s != %s" % (first, second))
+            } else {
+                panic AssertionError("%s: %s != %s" % (msg, first, second))
+            }
+        }
+    }
+
+    func assert_neq(self, first, second, msg=) {
+        /*
+            Asserts that two objects are not equal.
+
+            - Parameters:
+              - first: The first object to compare.
+              - second: The second object to compare.
+            - KWParameters:
+              - msg: Optional custom error message.
+        */
+
+        if first == second {
+            if msg == nil {
+                panic AssertionError("assertion failed: %s == %s" % (first, second))
+            } else {
+                panic AssertionError("%s: %s == %s" % (msg, first, second))
+            }
+        }
+    }
+
+    func assert_true(self, expr, msg=) {
+        /*
+            Asserts that the given expression is true.
+
+            - Parameter expr: The expression to evaluate.
+            - KWParameters:
+              - msg: Optional custom error message.
+        */
+
+        if !expr {
+            panic(AssertionError(msg == nil ? "assertion failed: expression is false" : msg))
+        }
+    }
+
+    func assert_false(self, expr, msg=) {
+        /*
+            Asserts that the given expression is false.
+
+            - Parameter expr: The expression to evaluate.
+            - KWParameters:
+              - msg: Optional custom error message.
+        */
+
+        if expr {
+            panic(AssertionError(msg == nil ? "assertion failed: expression is true" : msg))
+        }
+    }
+
+    func assert_isnil(self, expr, msg=) {
+        /*
+            Asserts that the given expression is nil.
+
+            - Parameter expr: The expression to evaluate.
+            - KWParameters:
+              - msg: Optional custom error message.
+        */
+
+        if expr != nil {
+            panic(AssertionError(msg == nil ? "assertion failed: expression is not nil" : msg))
+        }
+    }
+
+    func assert_panic(self, panic_id=, msg=) {
+        /*
+            Asserts that the current execution is in a panicking state.
+
+            Note: This function MUST be called using defer: 'defer self.assert_panic()' otherwise it will have no effect.
+
+            - KWParameters:
+              - panic_id: Optional expected panic ID.
+              - msg: Optional custom error message.
+        */
+
+        if !panicking() {
+            panic(AssertionError(msg == nil ? "assertion failed: test must panicking" : msg))
+        }
+
+        err := recover()
+        if panic_id && !typeof(err, Error) || err.id != panic_id {
+            panic(AssertionError(msg == nil ? "assertion failed: test must panicking with panic_id '%s'" % panic_id : msg))
+        }
+    }
+
+    func skip_test(self, reason) {
+        /*
+            Skips the current test.
+
+            This function raises a SkipTest error, which is caught by the TestCase::run to mark the test as skipped rather than failed.
+
+            - Parameter reason: A string explaining why the test was skipped.
+        */
+
+        panic(SkipTest(reason))
+    }
+}
+
+pub struct TestCase {
+    var t_object
+
+    pub var t_method
+
+    pub var t_status
+    pub var t_elapsed
+
+    pub var t_tb
+    pub var t_reason
+
+    pub func TestCase(test_method) {
+        /*
+            Creates a new TestCase instance.
+
+            - Parameter test_method: The test method to be executed.
+            - Returns: A new TestCase instance.
+        */
+
+        if !typeof(test_method, Function) {
+            panic TypeError("expected method, got: %s" % test_method.__qname)
+        }
+
+        if !test_method.__method {
+            panic TypeError("expected method, got function")
+        }
+
+        return TestCase@(test_method.__base, test_method, nil, 0.0)
+    }
+
+    func set_elapsed(self, result, start_time) {
+        end_time := monotonic() - start_time
+
+        result.add_duration(end_time)
+
+        self.t_elapsed = end_time
+    }
+
+    func catch_result(self, result, instance) {
+        if panicking() {
+            tb := extract_panic()
+            p_info := tb.panic
+
+            if p_info {
+                if type(p_info) == Error && p_info.id == @SkipTest {
+                    self.t_reason = p_info.reason
+                    self.t_status = @SKIPPED
+                } else {
+                    self.t_tb = tb.back
+                    self.t_reason = p_info
+                    self.t_status = @FAIL
+                }
+            }
+
+            recover()
+        } else {
+            self.t_status = @SUCCESS
+        }
+
+        defer () => {
+            if panicking() {
+                StackSummary::extract_panic().print_panic()
+
+                recover()
+            }
+        }()
+
+        instance.teardown()
+    }
+
+    pub func run(self, result) {
+        /*
+            Runs the test case and records the result.
+
+            - Parameter result: The TestResult object to record the outcome.
+        */
+
+        instance := self.t_object@()
+
+        defer self.set_elapsed(result, monotonic())
+
+        defer self.catch_result(result, instance)
+
+        instance.setup()
+
+        self.t_method(instance)
+    }
+
+     pub func __repr(self) {
+        return "%s ... %s, duration: %f" % (self.t_method.__qname, str(self.t_status)[1:], self.t_elapsed / 1000)
+    }
+}
